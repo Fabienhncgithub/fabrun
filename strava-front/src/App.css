@@ -1,0 +1,238 @@
+:root {
+  --strava-orange: #fc4c02;
+  --strava-orange-dark: #d43f02;
+  --ink: #111827;
+  --muted: #6b7280;
+  --card: #ffffff;
+  --line: #e5e7eb;
+  --danger: #b91c1c;
+}
+
+#root {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--strava-orange);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 8px 30px rgba(17, 24, 39, 0.07);
+}
+
+.brand-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-title {
+  font-family: "Barlow Condensed", "Manrope", sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #101010;
+}
+
+.brand-sub {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+button,
+.btn {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--strava-orange);
+  color: white;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-family: "Manrope", system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+button:hover,
+.btn:hover {
+  background: var(--strava-orange-dark);
+  transform: translateY(-1px);
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
+.chip {
+  background: #fff6f2;
+  border: 1px solid #ffd8c5;
+  color: #a33803;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 8px 30px rgba(17, 24, 39, 0.05);
+}
+
+.panel-head {
+  margin-bottom: 10px;
+  font-family: "Barlow Condensed", "Manrope", sans-serif;
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alert {
+  border: 1px solid #f5c3c3;
+  background: #fff5f5;
+  color: var(--danger);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-weight: 600;
+}
+
+.kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kpi-tile {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.kpi-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kpi-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.activities-table-wrap {
+  overflow-x: auto;
+}
+
+.activities-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.activities-table thead th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #fbfbfc;
+}
+
+.activities-table tbody td {
+  border-bottom: 1px solid #f0f1f3;
+  padding: 10px 8px;
+  font-size: 14px;
+}
+
+.activities-table tbody tr:hover {
+  background: #fff9f5;
+}
+
+.activities-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel input,
+.panel select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.panel ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 980px) {
+  .kpis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .two-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  #root {
+    padding: 14px 10px 32px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .brand-title {
+    font-size: 28px;
+  }
+}
