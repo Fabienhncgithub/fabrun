@@ -5,12 +5,21 @@ import KpisCard from "./components/KpisCard";
 import MarathonPredictor from "./components/MarathonPredictor";
 import AutoPredictionCard from "./components/AutoPredictionCard";
 import TrainingLoadCard from "./components/TrainingLoadCard";
+import ShoeUsageCard from "./components/ShoeUsageCard";
 import "./App.css";
 
 const API = import.meta.env.VITE_API_BASE as string;
 
+type ProfileShoe = {
+  id?: string | null;
+  name?: string | null;
+  distance?: number | null;
+  converted_distance?: number | null;
+};
+
 type Profile = {
   weight?: number;
+  shoes?: ProfileShoe[];
 };
 
 export default function App() {
@@ -107,6 +116,10 @@ export default function App() {
             <section className="panel two-cols">
               {kpis && <MarathonPredictor kpis={kpis} />}
               {token && <AutoPredictionCard />}
+            </section>
+
+            <section className="panel">
+              <ShoeUsageCard shoes={profile?.shoes ?? []} />
             </section>
           </>
         )}

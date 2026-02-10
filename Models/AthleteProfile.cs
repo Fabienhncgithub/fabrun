@@ -14,5 +14,6 @@ public record AthleteProfile(
     [property: JsonPropertyName("country")] string? country,
     [property: JsonPropertyName("profile")] string? profile,
     [property: JsonPropertyName("profile_medium")] string? profile_medium,
-    [property: JsonPropertyName("created_at")] DateTime? created_at
+    [property: JsonPropertyName("created_at")] DateTime? created_at,
+    [property: JsonPropertyName("shoes")] List<ProfileShoe>? shoes
 );
