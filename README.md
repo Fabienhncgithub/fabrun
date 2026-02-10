@@ -22,4 +22,5 @@ npm run dev
 ## Endpoints utiles
 - `GET /api/activities` (Authorization: Bearer ...)
 - `GET /api/kpis` (Authorization: Bearer ...)
+- `GET /api/profile` (Authorization: Bearer ...)
 - `GET /api/predict` (Authorization: Bearer ...)

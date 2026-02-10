@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
-import { getAccessToken, fetchActivities, fetchKpis } from "./api";
+import { getAccessToken, fetchActivities, fetchKpis, fetchProfile } from "./api";
 import ActivitiesTable from "./components/ActivitiesTable";
 import KpisCard from "./components/KpisCard";
 import MarathonPredictor from "./components/MarathonPredictor";
 import AutoPredictionCard from "./components/AutoPredictionCard";
+import TrainingLoadCard from "./components/TrainingLoadCard";
 import "./App.css";
 
 const API = import.meta.env.VITE_API_BASE as string;
+
+type Profile = {
+  weight?: number;
+};
 
 export default function App() {
   const token = getAccessToken();
   const [rows, setRows] = useState<any[] | null>(null);
   const [kpis, setKpis] = useState<any | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -21,10 +27,15 @@ export default function App() {
     try {
       setLoading(true);
       setErr(null);
-      const [a, k] = await Promise.all([fetchActivities(), fetchKpis()]);
+      const profilePromise = fetchProfile().catch(() => null);
+      const [a, k, p] = await Promise.all([fetchActivities(), fetchKpis(), profilePromise]);
       setRows(a);
       setKpis(k);
+      setProfile(p);
     } catch (e: any) {
+      setRows(null);
+      setKpis(null);
+      setProfile(null);
       setErr(e.message || String(e));
     } finally {
       setLoading(false);
@@ -84,10 +95,14 @@ export default function App() {
             </section>
 
             <section className="panel">
+              {rows && <TrainingLoadCard rows={rows} />}
+            </section>
+
+            <section className="panel">
               {kpis && <KpisCard k={kpis} />}
             </section>
             <section className="panel">
-              {rows && <ActivitiesTable rows={rows} />}
+              {rows && <ActivitiesTable rows={rows} athleteWeightKg={profile?.weight} />}
             </section>
             <section className="panel two-cols">
               {kpis && <MarathonPredictor kpis={kpis} />}

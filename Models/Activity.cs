@@ -8,5 +8,7 @@ public record Activity(
     double total_elevation_gain,
     string start_date_local,
     double? average_speed,
-    string name
+    string name,
+    double? calories = null,
+    double? kilojoules = null
 );

@@ -198,6 +198,161 @@ button:disabled,
   font-variant-numeric: tabular-nums;
 }
 
+.activities-table .type-cell {
+  white-space: nowrap;
+}
+
+.sport-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.sport-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.sport-run {
+  background: #fff3ec;
+  border-color: #ffd8c7;
+  color: #b1440f;
+}
+
+.sport-ski {
+  background: #edf7ff;
+  border-color: #cce6ff;
+  color: #0f4f83;
+}
+
+.sport-strength {
+  background: #f5f3ff;
+  border-color: #dfd6ff;
+  color: #4f3f96;
+}
+
+.sport-bike {
+  background: #effdf4;
+  border-color: #c9f0d6;
+  color: #18613a;
+}
+
+.sport-walk,
+.sport-hike {
+  background: #f7f8f3;
+  border-color: #e4e7db;
+  color: #50603d;
+}
+
+.sport-other {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #374151;
+}
+
+.training-load-card {
+  border-radius: 12px;
+  border: 1px solid #f1f2f4;
+  background: linear-gradient(180deg, #ffffff 0%, #fdfdfd 100%);
+  padding: 14px;
+}
+
+.training-load-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.training-zone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.training-zone-green {
+  background: #ecfdf3;
+  border: 1px solid #b7e6ca;
+  color: #11693f;
+}
+
+.training-zone-orange {
+  background: #fff7ed;
+  border: 1px solid #ffd9b0;
+  color: #a74606;
+}
+
+.training-zone-red {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+}
+
+.training-zone-insufficient_data {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+}
+
+.training-acr {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.training-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.training-title {
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.training-value {
+  font-size: 34px;
+  line-height: 1;
+  font-family: "Barlow Condensed", "Manrope", sans-serif;
+  color: #111827;
+}
+
+.training-text {
+  margin: 6px 0 0;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.training-meta {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .panel input,
 .panel select {
   border: 1px solid #d1d5db;

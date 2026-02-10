@@ -13,8 +13,8 @@ type Kpis = {
 export default function KpisCard({ k }: { k: Kpis }) {
   return (
     <div className="kpis-grid">
-      <div className="kpi-tile"><div className="kpi-label">Sorties (12 mois)</div><div className="kpi-value">{k.count}</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Kilométrage total</div><div className="kpi-value">{k.totalKm} km</div></div>
+      <div className="kpi-tile"><div className="kpi-label">Sorties (depuis toujours)</div><div className="kpi-value">{k.count}</div></div>
+      <div className="kpi-tile"><div className="kpi-label">Kilométrage total (course)</div><div className="kpi-value">{k.totalKm} km</div></div>
       <div className="kpi-tile"><div className="kpi-label">Allure moyenne</div><div className="kpi-value">{k.avgPacePerKm}</div></div>
       <div className="kpi-tile"><div className="kpi-label">Meilleure allure</div><div className="kpi-value">{k.bestPacePerKm}</div></div>
       <div className="kpi-tile"><div className="kpi-label">Plus longue sortie</div><div className="kpi-value">{k.longestKm} km</div></div>

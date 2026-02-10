@@ -15,9 +15,8 @@ namespace FabRun.Api.Controllers
         [HttpGet("activities")]
         public async Task<IActionResult> GetActivities()
         {
-            var auth = Request.Headers.Authorization.ToString();
-            if (string.IsNullOrWhiteSpace(auth) || !auth.StartsWith("Bearer ")) return Unauthorized();
-            var token = auth["Bearer ".Length..];
+            var token = GetBearerOrCookie();
+            if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             var acts = await _strava.FetchActivitiesAsync(token);
             return Ok(acts);
@@ -26,21 +25,29 @@ namespace FabRun.Api.Controllers
         [HttpGet("kpis")]
         public async Task<IActionResult> GetKpis()
         {
-            var auth = Request.Headers.Authorization.ToString();
-            if (string.IsNullOrWhiteSpace(auth) || !auth.StartsWith("Bearer ")) return Unauthorized();
-            var token = auth["Bearer ".Length..];
+            var token = GetBearerOrCookie();
+            if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             var kpis = await _strava.BuildKpisAsync(token);
             return Ok(kpis);
         }
 
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var token = GetBearerOrCookie();
+            if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
+
+            var profile = await _strava.FetchAthleteProfileAsync(token);
+            return Ok(profile);
+        }
+
         [HttpGet("predict")]
         public async Task<IActionResult> Predict([FromQuery] int windowDays = 365, [FromQuery] double exponent = 1.06)
         {
-            var auth = Request.Headers.Authorization.ToString();
-            if (string.IsNullOrWhiteSpace(auth) || !auth.StartsWith("Bearer "))
+            var token = GetBearerOrCookie();
+            if (string.IsNullOrWhiteSpace(token))
                 return Unauthorized(new { error = "Missing Bearer token" });
-            var token = auth["Bearer ".Length..];
 
             var acts = await _strava.FetchActivitiesAsync(token);
             var since = DateTime.UtcNow.AddDays(-windowDays);
@@ -106,8 +113,12 @@ namespace FabRun.Api.Controllers
         private string? GetBearerOrCookie()
         {
             var auth = Request.Headers.Authorization.ToString();
-            if (!string.IsNullOrWhiteSpace(auth) && auth.StartsWith("Bearer "))
-                return auth["Bearer ".Length..];
+            const string bearerPrefix = "Bearer ";
+            if (!string.IsNullOrWhiteSpace(auth) &&
+                auth.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return auth[bearerPrefix.Length..].Trim();
+            }
 
             if (Request.Cookies.TryGetValue("strava_access_token", out var cookieToken))
                 return cookieToken;

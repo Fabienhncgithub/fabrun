@@ -33,3 +33,13 @@ export async function fetchAutoPrediction() {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
+
+export async function fetchProfile() {
+  const token = getAccessToken();
+  if (!token) throw new Error("Token manquant (reconnecte-toi).");
+  const r = await fetch(`${API}/api/profile`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
