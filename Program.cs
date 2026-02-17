@@ -4,14 +4,25 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 {
-    var origin = builder.Configuration["FrontendOrigin"] ?? "http://localhost:5173";
-    p.WithOrigins(origin)
+    var configuredOrigins = builder.Configuration.GetSection("FrontendOrigins").Get<string[]>() ?? Array.Empty<string>();
+    var fallbackOrigin = builder.Configuration["FrontendOrigin"] ?? "http://localhost:5173";
+    var origins = configuredOrigins
+        .Append(fallbackOrigin)
+        .Where(v => !string.IsNullOrWhiteSpace(v))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    p.WithOrigins(origins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials();
 }));
 
 builder.Services.AddHttpClient<StravaService>();
+builder.Services.AddSingleton<HealthSleepService>();
+builder.Services.AddSingleton<BestEffortsStoreService>();
+builder.Services.AddSingleton<BestEffortsService>();
+builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

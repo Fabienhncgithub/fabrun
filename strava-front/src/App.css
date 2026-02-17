@@ -141,6 +141,24 @@ button:disabled,
   gap: 10px;
 }
 
+.kpis-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.kpis-section {
+  display: grid;
+  gap: 10px;
+}
+
+.kpis-section-title {
+  font-family: "Barlow Condensed", "Manrope", sans-serif;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #111827;
+}
+
 .kpi-tile {
   background: #fafafa;
   border: 1px solid #f0f0f0;
@@ -353,10 +371,323 @@ button:disabled,
   font-size: 12px;
 }
 
+.weekly-km-card {
+  display: grid;
+  gap: 10px;
+}
+
+.weekly-km-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.weekly-km-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+}
+
+.weekly-km-tab {
+  border: 0;
+  background: transparent;
+  color: #4b5563;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.weekly-km-tab:hover {
+  transform: none;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.weekly-km-tab-active,
+.weekly-km-tab-active:hover {
+  background: #111827;
+  color: #fff;
+}
+
+.weekly-km-title {
+  font-family: "Barlow Condensed", "Manrope", sans-serif;
+  font-size: 22px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #111827;
+}
+
+.weekly-km-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.weekly-km-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.weekly-km-chart {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #edf0f3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.weekly-km-plot-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.weekly-km-plot {
+  position: relative;
+}
+
+.weekly-km-svg {
+  width: 100%;
+  height: 180px;
+}
+
+.weekly-km-y-axis {
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.weekly-km-y-label {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-km-grid-line {
+  stroke: #e8eaee;
+  stroke-width: 1;
+}
+
+.weekly-km-line {
+  fill: none;
+  stroke: #fc4c02;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.weekly-km-point {
+  fill: #fc4c02;
+  stroke: #fff;
+  stroke-width: 1.6;
+}
+
+.weekly-km-point-current {
+  fill: #111827;
+}
+
+.weekly-km-point-hovered {
+  stroke: #111827;
+  stroke-width: 1.9;
+}
+
+.weekly-km-hover-line {
+  stroke: #9ca3af;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.weekly-km-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #111827;
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-width: 88px;
+  text-align: right;
+  pointer-events: none;
+}
+
+.weekly-km-tooltip-label {
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.weekly-km-tooltip-value {
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-km-labels {
+  display: grid;
+  gap: 6px;
+  margin-left: 46px;
+}
+
+.weekly-km-label {
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.predictions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.prediction-tile {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.prediction-label {
+  font-size: 12px;
+  color: #9aa6b2;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.prediction-value {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 6px;
+  color: #e5e7eb;
+}
+
+.prediction-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.prediction-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.badge-green {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.badge-orange {
+  background: rgba(249, 115, 22, 0.15);
+  color: #ea580c;
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+.badge-red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.prediction-score {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.prediction-reference {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #111827;
+}
+
+.prediction-reasons {
+  margin: 6px 0 10px;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.prediction-hint {
+  margin: 8px 0 12px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+@media (max-width: 900px) {
+  .predictions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .shoes-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.shoes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shoes-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shoes-sort-btn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #4b5563;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shoes-sort-btn:hover {
+  transform: none;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.shoes-sort-btn-active,
+.shoes-sort-btn-active:hover {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
 }
 
 .shoes-empty {
@@ -387,16 +718,103 @@ button:disabled,
   min-width: 0;
 }
 
-.shoe-icon {
-  width: 26px;
-  height: 26px;
+.shoe-photo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.shoe-brand-logo {
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #fff3ec;
-  border: 1px solid #ffd8c7;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #111827;
+  text-transform: uppercase;
+}
+
+.shoe-brand-nike {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.shoe-brand-adidas {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+
+.shoe-brand-hoka {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.shoe-brand-asics {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #fff;
+}
+
+.shoe-brand-new_balance {
+  background: #991b1b;
+  border-color: #991b1b;
+  color: #fff;
+}
+
+.shoe-brand-on {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+.shoe-brand-saucony {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.shoe-brand-brooks {
+  background: #0369a1;
+  border-color: #0369a1;
+  color: #fff;
+}
+
+.shoe-brand-salomon {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.shoe-brand-puma {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.shoe-brand-mizuno {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #fff;
+}
+
+.shoe-brand-altra {
+  background: #ea580c;
+  border-color: #ea580c;
+  color: #fff;
 }
 
 .shoe-name {
@@ -414,6 +832,35 @@ button:disabled,
   font-size: 16px;
   color: #111827;
   font-variant-numeric: tabular-nums;
+}
+
+.shoe-km-green {
+  color: #166534;
+}
+
+.shoe-km-orange {
+  color: #b45309;
+}
+
+.shoe-km-red {
+  color: #b91c1c;
+}
+
+.shoe-wear {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shoe-wear-green {
+  color: #166534;
+}
+
+.shoe-wear-orange {
+  color: #b45309;
+}
+
+.shoe-wear-red {
+  color: #b91c1c;
 }
 
 .shoe-sub {
@@ -457,5 +904,41 @@ button:disabled,
 
   .brand-title {
     font-size: 28px;
+  }
+
+  .weekly-km-chart {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .weekly-km-plot-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .weekly-km-svg {
+    height: 165px;
+  }
+
+  .weekly-km-y-axis {
+    height: 165px;
+  }
+
+  .weekly-km-labels {
+    margin-left: 40px;
+  }
+
+  .weekly-km-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .weekly-km-tab {
+    flex: 1;
+  }
+
+  .weekly-km-stats {
+    width: 100%;
+    justify-content: space-between;
   }
 }

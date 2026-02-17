@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FabRun.Api.Models;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace FabRun.Api.Services
@@ -14,25 +16,38 @@ namespace FabRun.Api.Services
     {
         private readonly HttpClient _http;
         private readonly ILogger<StravaService> _logger;
+        private readonly IMemoryCache _cache;
 
-        public StravaService(HttpClient http, ILogger<StravaService> logger)
+        public StravaService(HttpClient http, ILogger<StravaService> logger, IMemoryCache cache)
         {
             _http = http;
             _logger = logger;
+            _cache = cache;
         }
 
         // ---------- OAuth ----------
-        public string AuthorizeUrl(string clientId, string redirectUri, string scopeCsv = "read,activity:read_all,profile:read_all")
+        public string AuthorizeUrl(
+            string clientId,
+            string redirectUri,
+            string scopeCsv = "read,activity:read_all,profile:read_all",
+            string? state = null)
         {
             var baseUrl = "https://www.strava.com/oauth/authorize";
-            var url = QueryHelpers.AddQueryString(baseUrl, new Dictionary<string, string?>
+            var query = new Dictionary<string, string?>
             {
                 ["client_id"] = clientId,
                 ["redirect_uri"] = redirectUri,
                 ["response_type"] = "code",
                 ["approval_prompt"] = "auto",
                 ["scope"] = scopeCsv
-            });
+            };
+
+            if (!string.IsNullOrWhiteSpace(state))
+            {
+                query["state"] = state;
+            }
+
+            var url = QueryHelpers.AddQueryString(baseUrl, query);
             return url;
         }
 
@@ -54,68 +69,131 @@ namespace FabRun.Api.Services
 
         public async Task<AthleteProfile> FetchAthleteProfileAsync(string accessToken)
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, "https://www.strava.com/api/v3/athlete");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-            var resp = await _http.SendAsync(req);
-            resp.EnsureSuccessStatusCode();
-
-            var json = await resp.Content.ReadAsStringAsync();
-            var athlete = JsonSerializer.Deserialize<AthleteProfile>(
-                json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            if (athlete is null)
+            var cacheKey = $"strava:profile:{TokenKey(accessToken)}";
+            return await _cache.GetOrCreateAsync(cacheKey, async entry =>
             {
-                throw new InvalidOperationException("Unable to parse Strava athlete profile.");
-            }
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-            return athlete;
+                using var req = new HttpRequestMessage(HttpMethod.Get, "https://www.strava.com/api/v3/athlete");
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+                var resp = await _http.SendAsync(req);
+                resp.EnsureSuccessStatusCode();
+
+                var json = await resp.Content.ReadAsStringAsync();
+                var athlete = JsonSerializer.Deserialize<AthleteProfile>(
+                    json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (athlete is null)
+                {
+                    throw new InvalidOperationException("Unable to parse Strava athlete profile.");
+                }
+
+                return athlete;
+            }) ?? throw new InvalidOperationException("Unable to load Strava athlete profile.");
         }
 
         // ---------- Data ----------
         public async Task<List<Activity>> FetchActivitiesAsync(string accessToken, int? daysBack = 365)
         {
-            long? after = daysBack.HasValue
-                ? DateTimeOffset.UtcNow.AddDays(-daysBack.Value).ToUnixTimeSeconds()
-                : null;
+            var daysKey = daysBack?.ToString() ?? "all";
+            var cacheKey = $"strava:activities:{TokenKey(accessToken)}:{daysKey}";
 
-            var all = new List<Activity>();
-            int page = 1;
-            while (true)
+            return await _cache.GetOrCreateAsync(cacheKey, async entry =>
             {
-                var query = new Dictionary<string, string?>
-                {
-                    ["per_page"] = "200",
-                    ["page"] = page.ToString()
-                };
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
 
-                if (after.HasValue)
+                long? after = daysBack.HasValue
+                    ? DateTimeOffset.UtcNow.AddDays(-daysBack.Value).ToUnixTimeSeconds()
+                    : null;
+
+                var all = new List<Activity>();
+                int page = 1;
+                while (true)
                 {
-                    query["after"] = after.Value.ToString();
+                    var query = new Dictionary<string, string?>
+                    {
+                        ["per_page"] = "200",
+                        ["page"] = page.ToString()
+                    };
+
+                    if (after.HasValue)
+                    {
+                        query["after"] = after.Value.ToString();
+                    }
+
+                    var url = QueryHelpers.AddQueryString("https://www.strava.com/api/v3/athlete/activities", query);
+                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                    var resp = await _http.SendAsync(req);
+                    resp.EnsureSuccessStatusCode();
+                    var json = await resp.Content.ReadAsStringAsync();
+                    var batch = JsonSerializer.Deserialize<List<Activity>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+                    if (batch.Count == 0) break;
+                    all.AddRange(batch);
+                    page++;
+                    if (page > 100)
+                    {
+                        _logger.LogWarning("Stopping Strava pagination at page {Page} (daysBack={DaysBack}).", page, daysBack);
+                        break;
+                    }
                 }
 
-                var url = QueryHelpers.AddQueryString("https://www.strava.com/api/v3/athlete/activities", query);
+                return all;
+            }) ?? new List<Activity>();
+        }
+
+        public async Task<StravaStreams?> FetchActivityStreamsAsync(string accessToken, long activityId)
+        {
+            var cacheKey = $"strava:streams:{TokenKey(accessToken)}:{activityId}";
+            return await _cache.GetOrCreateAsync(cacheKey, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+
+                var url = $"https://www.strava.com/api/v3/activities/{activityId}/streams?keys=distance,time&key_by_type=true";
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
                 var resp = await _http.SendAsync(req);
-                resp.EnsureSuccessStatusCode();
+                if (!resp.IsSuccessStatusCode) return null;
                 var json = await resp.Content.ReadAsStringAsync();
-                var batch = JsonSerializer.Deserialize<List<Activity>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-                if (batch.Count == 0) break;
-                all.AddRange(batch);
-                page++;
-                if (page > 100)
+                return JsonSerializer.Deserialize<StravaStreams>(json, new JsonSerializerOptions
                 {
-                    _logger.LogWarning("Stopping Strava pagination at page {Page} (daysBack={DaysBack}).", page, daysBack);
-                    break;
-                }
-            }
-            return all;
+                    PropertyNameCaseInsensitive = true
+                });
+            });
+        }
+
+        public async Task<StravaActivityDetail?> FetchActivityDetailAsync(string accessToken, long activityId)
+        {
+            var cacheKey = $"strava:activity:{TokenKey(accessToken)}:{activityId}";
+            return await _cache.GetOrCreateAsync(cacheKey, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
+
+                var url = $"https://www.strava.com/api/v3/activities/{activityId}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+                var resp = await _http.SendAsync(req);
+                if (!resp.IsSuccessStatusCode) return null;
+                var json = await resp.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<StravaActivityDetail>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            });
+        }
+
+        private static string TokenKey(string accessToken)
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(accessToken));
+            return Convert.ToHexString(bytes);
         }
 
         // ---------- KPIs ----------
-        public static Kpis ComputeKpis(IEnumerable<Activity> activities)
+        public static Kpis ComputeKpis(IEnumerable<Activity> activities, string periodLabel = "all_time")
         {
             bool IsRun(Activity a) => new[] { "Run", "TrailRun", "VirtualRun" }.Contains(a.sport_type);
             var runs = activities.Where(IsRun).ToList();
@@ -153,7 +231,7 @@ namespace FabRun.Api.Services
             }
 
             return new Kpis(
-                "all_time",
+                periodLabel,
                 runs.Count,
                 Math.Round(totalKm, 1),
                 F(avg),
