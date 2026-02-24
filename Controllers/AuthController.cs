@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using FabRun.Api.Services;
+using FabRun.Api.Abstractions.External;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Text;
 
@@ -9,9 +9,9 @@ namespace FabRun.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IConfiguration _cfg;
-    private readonly StravaService _strava;
+    private readonly IStravaClient _strava;
 
-    public AuthController(IConfiguration cfg, StravaService strava)
+    public AuthController(IConfiguration cfg, IStravaClient strava)
     {
         _cfg = cfg;
         _strava = strava;

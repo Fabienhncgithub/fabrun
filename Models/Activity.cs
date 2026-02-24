@@ -10,5 +10,7 @@ public record Activity(
     double? average_speed,
     string name,
     double? calories = null,
-    double? kilojoules = null
+    double? kilojoules = null,
+    double? average_heartrate = null,
+    double? max_heartrate = null
 );

@@ -1,0 +1,57 @@
+{
+  "141846696": {
+    "calculatedAtUtc": "2026-02-24T11:03:31.776507+00:00",
+    "efforts": [
+      {
+        "distanceKm": 1,
+        "timeSec": 267,
+        "activityId": 15720715926,
+        "activityName": "Course \u00E0 pied en soir\u00E9e",
+        "dateLocal": "2025-09-06T20:35:04+02:00",
+        "method": "streams",
+        "startKm": 0.033,
+        "endKm": 1.033
+      },
+      {
+        "distanceKm": 5,
+        "timeSec": 1420,
+        "activityId": 15188753079,
+        "activityName": "Course \u00E0 pied en soir\u00E9e",
+        "dateLocal": "2025-07-21T20:41:16+02:00",
+        "method": "streams",
+        "startKm": 0.052,
+        "endKm": 5.052
+      },
+      {
+        "distanceKm": 10,
+        "timeSec": 2996,
+        "activityId": 16017783055,
+        "activityName": "Course \u00E0 pied le matin",
+        "dateLocal": "2025-10-03T10:01:36+02:00",
+        "method": "streams",
+        "startKm": 9.552,
+        "endKm": 19.552
+      },
+      {
+        "distanceKm": 21.097,
+        "timeSec": 6616,
+        "activityId": 16017783055,
+        "activityName": "Course \u00E0 pied le matin",
+        "dateLocal": "2025-10-03T10:01:36+02:00",
+        "method": "streams",
+        "startKm": 3.134,
+        "endKm": 24.231
+      },
+      {
+        "distanceKm": 42.195,
+        "timeSec": 12405,
+        "activityId": 14444621968,
+        "activityName": "Course \u00E0 pied le matin",
+        "dateLocal": "2025-05-11T11:06:52+02:00",
+        "method": "activity",
+        "startKm": 0,
+        "endKm": 42.58
+      }
+    ]
+  }
+}

@@ -3,9 +3,12 @@ import { getAccessToken, fetchDashboard, fetchRunningPredictions } from "./api";
 import ActivitiesTable from "./components/ActivitiesTable";
 import KpisCard from "./components/KpisCard";
 import TrainingLoadCard from "./components/TrainingLoadCard";
+import FormTrendCard from "./components/FormTrendCard";
 import ShoeUsageCard from "./components/ShoeUsageCard";
 import PerformancePredictionsCard from "./components/PerformancePredictionsCard";
 import WeeklyKmChartCard from "./components/WeeklyKmChartCard";
+import NextSessionCard from "./components/NextSessionCard";
+import WeeklyTrainingPlanCard from "./components/WeeklyTrainingPlanCard";
 import "./App.css";
 
 const API = import.meta.env.VITE_API_BASE as string;
@@ -144,11 +147,22 @@ export default function App() {
             </section>
 
             <section className="panel">
+              {rows && <FormTrendCard rows={rows} sleep={sleepSummary} />}
+            </section>
+
+            <section className="panel">
+              {rows && <NextSessionCard rows={rows} predictions={predictions} />}
+            </section>
+
+            <section className="panel">
+              {rows && <WeeklyTrainingPlanCard rows={rows} predictions={predictions} />}
+            </section>
+
+            <section className="panel">
               {kpisAllTime && kpisCurrentYear && (
                 <KpisCard
                   allTime={kpisAllTime}
                   currentYear={kpisCurrentYear}
-                  sleep={sleepSummary}
                 />
               )}
             </section>

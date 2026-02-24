@@ -10,17 +10,59 @@ type Kpis = {
   acuteChronicRatio: number;
 };
 
-export default function KpisCard({ k }: { k: Kpis }) {
+function KpisSection({ title, k }: { title: string; k: Kpis }) {
   return (
-    <div className="kpis-grid">
-      <div className="kpi-tile"><div className="kpi-label">Sorties (depuis toujours)</div><div className="kpi-value">{k.count}</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Kilométrage total (course)</div><div className="kpi-value">{k.totalKm} km</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Allure moyenne</div><div className="kpi-value">{k.avgPacePerKm}</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Meilleure allure</div><div className="kpi-value">{k.bestPacePerKm}</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Plus longue sortie</div><div className="kpi-value">{k.longestKm} km</div></div>
-      <div className="kpi-tile"><div className="kpi-label">AC Ratio</div><div className="kpi-value">{k.acuteChronicRatio}</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Km (4 sem.)</div><div className="kpi-value">{k.km4}</div></div>
-      <div className="kpi-tile"><div className="kpi-label">Km (12 sem.)</div><div className="kpi-value">{k.km12}</div></div>
+    <div className="kpis-section">
+      <div className="kpis-section-title">{title}</div>
+      <div className="kpis-grid">
+        <div className="kpi-tile">
+          <div className="kpi-label">Sorties</div>
+          <div className="kpi-value">{k.count}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">Kilométrage total (course)</div>
+          <div className="kpi-value">{k.totalKm} km</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">Allure moyenne</div>
+          <div className="kpi-value">{k.avgPacePerKm}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">Meilleure allure</div>
+          <div className="kpi-value">{k.bestPacePerKm}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">Plus longue sortie</div>
+          <div className="kpi-value">{k.longestKm} km</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">AC Ratio</div>
+          <div className="kpi-value">{k.acuteChronicRatio}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">Km (4 sem.)</div>
+          <div className="kpi-value">{k.km4}</div>
+        </div>
+        <div className="kpi-tile">
+          <div className="kpi-label">Km (12 sem.)</div>
+          <div className="kpi-value">{k.km12}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function KpisCard({
+  allTime,
+  currentYear,
+}: {
+  allTime: Kpis;
+  currentYear: Kpis;
+}) {
+  return (
+    <div className="kpis-sections">
+      <KpisSection title={`${new Date().getFullYear()}`} k={currentYear} />
+      <KpisSection title="Depuis toujours" k={allTime} />
     </div>
   );
 }

@@ -23,4 +23,4 @@ npm run dev
 - `GET /api/activities` (Authorization: Bearer ...)
 - `GET /api/kpis` (Authorization: Bearer ...)
 - `GET /api/profile` (Authorization: Bearer ...)
-- `GET /api/predict` (Authorization: Bearer ...)
+- `GET /api/predictions/running` (Authorization: Bearer ...)

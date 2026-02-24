@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 using System.Linq; // pour .Select()
+using FabRun.Api.Abstractions.External;
 using FabRun.Api.Services;
 using BestEffort = FabRun.Api.Models.BestEffort;
 
@@ -9,8 +11,13 @@ namespace FabRun.Api.Controllers
     [Route("api")]
     public class ActivitiesController : ControllerBase
     {
-        private readonly StravaService _strava;
-        public ActivitiesController(StravaService strava) => _strava = strava;
+        private readonly IStravaClient _strava;
+        private readonly HealthSleepService _sleep;
+        public ActivitiesController(IStravaClient strava, HealthSleepService sleep)
+        {
+            _strava = strava;
+            _sleep = sleep;
+        }
 
         [HttpGet("activities")]
         public async Task<IActionResult> GetActivities()
@@ -18,8 +25,15 @@ namespace FabRun.Api.Controllers
             var token = GetBearerOrCookie();
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
-            var acts = await _strava.FetchActivitiesAsync(token);
-            return Ok(acts);
+            try
+            {
+                var acts = await _strava.FetchActivitiesAsync(token);
+                return Ok(acts);
+            }
+            catch (HttpRequestException ex) when (TryMapStravaError(ex, out var mapped))
+            {
+                return mapped;
+            }
         }
 
         [HttpGet("kpis")]
@@ -28,8 +42,15 @@ namespace FabRun.Api.Controllers
             var token = GetBearerOrCookie();
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
-            var kpis = await _strava.BuildKpisAsync(token);
-            return Ok(kpis);
+            try
+            {
+                var kpis = await _strava.BuildKpisAsync(token);
+                return Ok(kpis);
+            }
+            catch (HttpRequestException ex) when (TryMapStravaError(ex, out var mapped))
+            {
+                return mapped;
+            }
         }
 
         [HttpGet("profile")]
@@ -38,8 +59,68 @@ namespace FabRun.Api.Controllers
             var token = GetBearerOrCookie();
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
-            var profile = await _strava.FetchAthleteProfileAsync(token);
-            return Ok(profile);
+            try
+            {
+                var profile = await _strava.FetchAthleteProfileAsync(token);
+                return Ok(profile);
+            }
+            catch (HttpRequestException ex) when (TryMapStravaError(ex, out var mapped))
+            {
+                return mapped;
+            }
+        }
+
+        [HttpGet("dashboard")]
+        public async Task<IActionResult> GetDashboard()
+        {
+            var token = GetBearerOrCookie();
+            if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
+
+            try
+            {
+                // Pull complet pour calculer les KPI "depuis toujours" correctement.
+                var allActivities = await _strava.FetchActivitiesAsync(token, null);
+
+                // La table du dashboard reste bornée aux 12 derniers mois pour rester lisible.
+                var tableCutoff = DateTime.Today.AddDays(-365);
+                var activities = allActivities.Where(a =>
+                {
+                    if (!DateTime.TryParse(a.start_date_local, out var parsed))
+                    {
+                        return false;
+                    }
+
+                    return parsed >= tableCutoff;
+                }).ToList();
+
+                var kpis = StravaAnalytics.ComputeKpis(allActivities, "all_time");
+                var currentYear = DateTime.Now.Year;
+                var currentYearActivities = allActivities.Where(a =>
+                {
+                    if (!DateTime.TryParse(a.start_date_local, out var parsed))
+                    {
+                        return false;
+                    }
+
+                    return parsed.Year == currentYear;
+                });
+                var kpisCurrentYear = StravaAnalytics.ComputeKpis(currentYearActivities, "current_year");
+                var profile = await _strava.FetchAthleteProfileAsync(token);
+                var sleepSummary = await _sleep.GetSummaryAsync(profile.id);
+
+                return Ok(new
+                {
+                    activities,
+                    kpis,
+                    kpisCurrentYear,
+                    profile,
+                    sleep = sleepSummary
+                });
+            }
+            catch (HttpRequestException ex) when (TryMapStravaError(ex, out var mapped))
+            {
+                return mapped;
+            }
         }
 
         [HttpGet("predict")]
@@ -52,12 +133,12 @@ namespace FabRun.Api.Controllers
             var acts = await _strava.FetchActivitiesAsync(token);
             var since = DateTime.UtcNow.AddDays(-windowDays);
 
-            var best = StravaService.PickBestReferenceFromActivities(acts, since);
+            var best = StravaAnalytics.PickBestReferenceFromActivities(acts, since);
             if (best == null)
                 return NotFound(new { error = "Aucune course 5K/10K/semi trouvée dans la période." });
 
             const double M = 42.195;
-            var raw = StravaService.RiegelPredictSeconds(best.seconds, best.distKm, M, exponent);
+            var raw = StravaAnalytics.RiegelPredictSeconds(best.seconds, best.distKm, M, exponent);
             var adj = raw;
 
             static string HMS(int sec){int h=sec/3600,m=(sec%3600)/60,s=sec%60;return $"{h}:{m:00}:{s:00}";}
@@ -151,6 +232,30 @@ namespace FabRun.Api.Controllers
             var spk = sec / km;
             int m = (int)(spk / 60), s = (int)Math.Round(spk % 60);
             return $"{m}:{s:00}/km";
+        }
+
+        private bool TryMapStravaError(HttpRequestException ex, out IActionResult mapped)
+        {
+            if (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                mapped = Unauthorized(new { error = "Token Strava invalide ou expiré. Reconnecte-toi." });
+                return true;
+            }
+
+            if (ex.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                mapped = StatusCode(StatusCodes.Status429TooManyRequests, new
+                {
+                    error = "Limite Strava atteinte (429). Réessaie dans quelques minutes."
+                });
+                return true;
+            }
+
+            mapped = StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                error = "Erreur Strava en amont. Réessaie plus tard."
+            });
+            return true;
         }
     }
 }

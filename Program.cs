@@ -1,3 +1,7 @@
+using FabRun.Api.Abstractions.External;
+using FabRun.Api.Abstractions.Persistence;
+using FabRun.Api.Infrastructure.External;
+using FabRun.Api.Infrastructure.Persistence;
 using FabRun.Api.Services;
 using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +22,9 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
         .AllowCredentials();
 }));
 
-builder.Services.AddHttpClient<StravaService>();
+builder.Services.AddHttpClient<IStravaClient, StravaApiClient>();
+builder.Services.AddSingleton<ISleepRepository, FileSleepRepository>();
+builder.Services.AddSingleton<IBestEffortsRepository, FileBestEffortsRepository>();
 builder.Services.AddSingleton<HealthSleepService>();
 builder.Services.AddSingleton<BestEffortsStoreService>();
 builder.Services.AddSingleton<BestEffortsService>();
