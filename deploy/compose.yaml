@@ -29,7 +29,8 @@ services:
     cpus: 1.0
     pids_limit: 200
     networks:
-      - fabrun
+      fabrun:
+        ipv4_address: 172.30.0.3
 
   web:
     build:
