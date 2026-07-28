@@ -9,7 +9,7 @@ ARG VITE_API_BASE=""
 ENV VITE_API_BASE=$VITE_API_BASE
 RUN npm run build
 
-FROM caddy:2.10.2-alpine
+FROM caddy:2.11.4-alpine
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 RUN addgroup -g 10001 -S fabrun \
