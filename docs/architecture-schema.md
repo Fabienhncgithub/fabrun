@@ -1,0 +1,90 @@
+# FabRun Architecture Schema
+
+## Mermaid Diagram
+
+```mermaid
+flowchart TD
+    subgraph Frontend[Frontend - React/Vite]
+        App[App.tsx]
+        Api[api.ts]
+        UI1[ActivitiesTable]
+        UI2[KpisCard]
+        UI3[TrainingLoadCard]
+        UI4[ShoeUsageCard]
+        UI5[PerformancePredictionsCard]
+
+        App --> Api
+        App --> UI1
+        App --> UI2
+        App --> UI3
+        App --> UI4
+        App --> UI5
+    end
+
+    subgraph Backend[Backend - ASP.NET Core]
+        Program[Program.cs\nDI + CORS + Swagger]
+
+        subgraph Controllers
+            CAuth[AuthController]
+            CAct[ActivitiesController]
+            CPred[PredictionsController]
+            CSleep[HealthSleepController]
+        end
+
+        subgraph Services
+            SStrava[StravaService\nHTTP Strava + MemoryCache]
+            SBest[BestEffortsService\nBest effort computation]
+            SStore[BestEffortsStoreService\nJSON store]
+            SSleep[HealthSleepService\nSleep store + summary]
+            SMath[PredictionMath\nCalibration + confidence]
+        end
+
+        subgraph DataModels[Models / DTO]
+            M1[PredictionResponse]
+            M2[SleepUploadRequest]
+            M3[Activity / Kpis / AthleteProfile]
+        end
+
+        Program --> CAuth
+        Program --> CAct
+        Program --> CPred
+        Program --> CSleep
+
+        CAuth --> SStrava
+        CAct --> SStrava
+        CAct --> SSleep
+        CPred --> SStrava
+        CPred --> SBest
+        CPred --> SStore
+        CPred --> SMath
+        CSleep --> SStrava
+        CSleep --> SSleep
+
+        CAct --> DataModels
+        CPred --> DataModels
+        CSleep --> DataModels
+    end
+
+    Strava[(Strava API\nwww.strava.com/api/v3)]
+    Store1[(Data/best-efforts.json)]
+    Store2[(Data/health-sleep.json)]
+
+    Api -->|Bearer token| CAct
+    Api -->|Bearer token| CPred
+    Api -->|Bearer token| CSleep
+    App -->|Login redirect| CAuth
+
+    SStrava --> Strava
+    SStore --> Store1
+    SSleep --> Store2
+```
+
+## Files
+
+- Mermaid source: `docs/architecture-schema.mmd`
+- Markdown preview: `docs/architecture-schema.md`
+
+## Export to PNG/SVG
+
+- Open `docs/architecture-schema.mmd` in Mermaid Live Editor.
+- Export as SVG or PNG.

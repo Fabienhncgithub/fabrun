@@ -1,0 +1,128 @@
+name: Security checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore FabRun.Api.sln
+
+      - name: Test
+        run: dotnet test FabRun.Api.sln --no-restore --configuration Release
+
+      - name: Audit NuGet dependencies
+        run: |
+          dotnet list FabRun.Api.csproj package --vulnerable --include-transitive --format json > api-audit.json
+          dotnet list FabRun.Api.Tests/FabRun.Api.Tests.csproj package --vulnerable --include-transitive --format json > tests-audit.json
+          jq -e '[.. | objects | (.vulnerabilities? // [])[]] | length == 0' api-audit.json
+          jq -e '[.. | objects | (.vulnerabilities? // [])[]] | length == 0' tests-audit.json
+
+      - name: Verify published API contents
+        run: |
+          dotnet publish FabRun.Api.csproj --no-restore --configuration Release --output publish
+          test ! -e publish/Data/best-efforts.json
+          test ! -d publish/certs
+          test ! -d publish/strava-front
+          test ! -d publish/FabRun.Api.Tests
+          test ! -e publish/appsettings.Development.json
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: strava-front
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: strava-front/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck and build
+        run: npm run build
+
+  repository:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject private keys and runtime data
+        shell: bash
+        run: |
+          if git grep -I -n -E -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'; then
+            echo "A private key is tracked by Git."
+            exit 1
+          fi
+
+          tracked_sensitive="$(
+            git ls-files \
+              | grep -E '(^|/)\.env(\.|$)|(^|/)certs/|\.p12$|^Data/.*\.json$' \
+              | grep -Ev '(^|/)\.env(\.[^/]*)?\.example$' \
+              || true
+          )"
+          if [ -n "$tracked_sensitive" ]; then
+            echo "Sensitive runtime files are tracked:"
+            echo "$tracked_sensitive"
+            exit 1
+          fi
+
+  containers:
+    runs-on: ubuntu-latest
+    env:
+      FABRUN_DOMAIN: fabrun.example.com
+      FABRUN_ACCESS_PASSWORD: "012345678901234567890123"
+      FABRUN_SESSION_VERSION: "012345678901234567890123"
+      STRAVA_CLIENT_ID: "12345"
+      STRAVA_CLIENT_SECRET: "012345678901234567890123"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build hardened images
+        run: docker compose -f deploy/compose.yaml build
+
+      - name: Verify runtime users and contents
+        run: |
+          test "$(docker image inspect deploy-api --format '{{.Config.User}}')" = "1654"
+          test "$(docker image inspect deploy-web --format '{{.Config.User}}')" = "fabrun"
+          docker run --rm --entrypoint sh deploy-api -c \
+            'test ! -e /app/Data/best-efforts.json && test ! -d /app/certs && test ! -d /app/strava-front'
+
+      - name: Validate Caddy configuration
+        run: |
+          docker run --rm \
+            -e FABRUN_DOMAIN=fabrun.example.com \
+            --entrypoint caddy \
+            deploy-web validate --config /etc/caddy/Caddyfile

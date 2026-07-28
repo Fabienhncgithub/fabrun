@@ -1,0 +1,13 @@
+.*
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.DS_Store
+**/*.pem
+**/*.p12
+**/.env
+Data/*.json
+.pnpm-store
+FabRun.Api.Tests
+deploy/.env.production

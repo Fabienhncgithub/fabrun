@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.DS_Store
+
+**/.env
+**/.env.*
+!**/.env.example
+!deploy/.env.production.example
+
+**/*.pem
+**/*.p12
+Data/*.json
+
+.pnpm-store/
