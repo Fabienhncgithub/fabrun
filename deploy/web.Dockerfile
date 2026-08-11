@@ -1,4 +1,4 @@
-FROM node:22.23.1-alpine AS build
+FROM node:26.7.0-alpine AS build
 WORKDIR /app
 
 COPY strava-front/package.json strava-front/package-lock.json ./
