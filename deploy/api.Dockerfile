@@ -7,7 +7,7 @@ RUN dotnet restore FabRun.Api.csproj
 COPY . ./
 RUN dotnet publish FabRun.Api.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.10 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.11 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish ./
 RUN mkdir -p /app/Data /home/app/.aspnet/DataProtection-Keys \
