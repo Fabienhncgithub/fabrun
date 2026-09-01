@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { computeTrainingLoad } from "../utils/trainingLoad";
+import { parseStravaLocalDate } from "../utils/dateBuckets";
 
 type Activity = {
   sport_type: string;
@@ -34,8 +36,7 @@ function round2(value: number) {
 }
 
 function parseDate(value: string): Date | null {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseStravaLocalDate(value);
 }
 
 function startOfMonth(d: Date): Date {
@@ -114,15 +115,18 @@ function computeFormScore(rows: Activity[], sleep?: SleepSummary | null) {
   const validRuns = runs.filter((r) => r.date != null);
   const inDays = (days: number) => validRuns.filter((r) => now - r.date!.getTime() <= days * 24 * 3600 * 1000);
 
-  const runs7 = inDays(7);
-  const runs42 = inDays(42);
   const runs2 = inDays(2);
   const runs1 = inDays(1);
 
-  const km7 = runs7.reduce((acc, r) => acc + r.distance / 1000, 0);
-  const km42 = runs42.reduce((acc, r) => acc + r.distance / 1000, 0);
-  const chronicWeek = km42 / 6;
-  const loadRatio = chronicWeek > 0 ? km7 / chronicWeek : null;
+  // Acute:chronic load has one implementation in the app (see
+  // utils/trainingLoad.ts) - this used to recompute its own version with a
+  // 42-day/6-week chronic window instead of computeTrainingLoad's 28-day/
+  // 4-week one, so the same day could show two different "load ratio"
+  // numbers depending on which card you looked at.
+  const load = computeTrainingLoad(rows);
+  const km7 = load.acute7Km;
+  const chronicWeek = load.chronic28AvgKm;
+  const loadRatio = load.acr;
 
   let score = 50;
   if (loadRatio == null) {

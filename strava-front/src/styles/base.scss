@@ -2,10 +2,34 @@
   --strava-orange: #fc4c02;
   --strava-orange-dark: #d43f02;
   --ink: #111827;
+  --text-strong: #101010;
   --muted: #6b7280;
   --card: #ffffff;
   --line: #e5e7eb;
+  --surface-page: #f5f6f8;
+  --surface-soft: #fafafa;
+  --surface-muted: #f3f4f6;
+  --input-bg: #ffffff;
   --danger: #b91c1c;
+  // Shared status-tone tokens: single source of truth for the "good / warn /
+  // bad / neutral" color family reused across training load, form trend,
+  // shoe wear and prediction-confidence cards (see utils/statusTone.ts).
+  --tone-good-bg: #ecfdf3;
+  --tone-good-border: #a7e3c5;
+  --tone-good-text: #14532d;
+  --tone-good-solid: #22c55e;
+  --tone-warn-bg: #fff7ed;
+  --tone-warn-border: #fed7aa;
+  --tone-warn-text: #9a3412;
+  --tone-warn-solid: #f59e0b;
+  --tone-bad-bg: #fff1f2;
+  --tone-bad-border: #fecdd3;
+  --tone-bad-text: #881337;
+  --tone-bad-solid: #ef4444;
+  --tone-neutral-bg: #f3f4f6;
+  --tone-neutral-border: #e5e7eb;
+  --tone-neutral-text: #374151;
+  --tone-neutral-solid: #94a3b8;
   --content-width: 72.5rem;
   --page-gutter: clamp(0.875rem, 2.2vw, 1.5rem);
   --radius-card: 0.875rem;
@@ -16,12 +40,43 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #111827;
-  background: #f5f6f8;
+  color: var(--ink);
+  background: var(--surface-page);
   color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme="dark"] {
+  --ink: #edf1f7;
+  --text-strong: #ffffff;
+  --muted: #9aa6b8;
+  --card: #141a24;
+  --line: #2a3443;
+  --surface-page: #0b0f17;
+  --surface-soft: #19212d;
+  --surface-muted: #222c3a;
+  --input-bg: #101620;
+  --danger: #ff8a8a;
+  --shadow-card: 0 0.75rem 2.5rem rgb(0 0 0 / 28%);
+  --tone-good-bg: rgb(34 197 94 / 12%);
+  --tone-good-border: rgb(74 222 128 / 36%);
+  --tone-good-text: #86efac;
+  --tone-good-solid: #4ade80;
+  --tone-warn-bg: rgb(249 115 22 / 12%);
+  --tone-warn-border: rgb(251 146 60 / 42%);
+  --tone-warn-text: #ffad7a;
+  --tone-warn-solid: #fb923c;
+  --tone-bad-bg: rgb(244 63 94 / 12%);
+  --tone-bad-border: rgb(251 113 133 / 38%);
+  --tone-bad-text: #fda4af;
+  --tone-bad-solid: #fb7185;
+  --tone-neutral-bg: var(--surface-muted);
+  --tone-neutral-border: var(--line);
+  --tone-neutral-text: var(--ink);
+  --tone-neutral-solid: #64748b;
+  color-scheme: dark;
 }
 
 *,
@@ -40,8 +95,16 @@ body {
   min-height: 100svh;
   background:
     radial-gradient(1200px 520px at -10% -20%, rgba(252, 76, 2, 0.14) 0%, rgba(252, 76, 2, 0) 62%),
-    linear-gradient(180deg, #f8f9fb 0%, #f3f4f6 100%);
-  color: #111827;
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-page) 96%, white) 0%, var(--surface-page) 100%);
+  color: var(--ink);
+  transition: color 180ms var(--ease-out), background-color 180ms var(--ease-out);
+}
+
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(1000px 520px at -10% -20%, rgb(252 76 2 / 18%) 0%, transparent 64%),
+    radial-gradient(800px 500px at 105% 5%, rgb(29 78 216 / 10%) 0%, transparent 62%),
+    var(--surface-page);
 }
 
 a {
@@ -81,6 +144,45 @@ button:disabled {
 input,
 select {
   accent-color: var(--strava-orange);
+}
+
+// Generic status-tone utility classes (see utils/statusTone.ts). New cards
+// should reach for these instead of inventing another green/orange/red
+// class family.
+.tone-good {
+  background: var(--tone-good-bg);
+  border: 1px solid var(--tone-good-border);
+  color: var(--tone-good-text);
+}
+
+.tone-warn {
+  background: var(--tone-warn-bg);
+  border: 1px solid var(--tone-warn-border);
+  color: var(--tone-warn-text);
+}
+
+.tone-bad {
+  background: var(--tone-bad-bg);
+  border: 1px solid var(--tone-bad-border);
+  color: var(--tone-bad-text);
+}
+
+.tone-neutral {
+  background: var(--tone-neutral-bg);
+  border: 1px solid var(--tone-neutral-border);
+  color: var(--tone-neutral-text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

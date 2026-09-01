@@ -11,9 +11,5 @@ public record Kpis(
     double? averageHeartRate,
     double strengthTrainingHours,
     double longestKm,
-    double totalElevationGain,
-    Dictionary<string,double> weeklyKm,
-    double km4,
-    double km12,
-    double acuteChronicRatio
+    double totalElevationGain
 );

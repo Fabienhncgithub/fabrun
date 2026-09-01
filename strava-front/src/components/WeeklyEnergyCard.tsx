@@ -1,4 +1,5 @@
-import { activeCalories } from "../utils/activityEnergy";
+import { activeCalories, type CalorieProfile } from "../utils/activityEnergy";
+import { parseStravaLocalDate } from "../utils/dateBuckets";
 
 type Activity = {
   id: number;
@@ -7,6 +8,7 @@ type Activity = {
   total_elevation_gain?: number;
   start_date_local: string;
   average_speed?: number;
+  average_heartrate?: number | null;
   calories?: number;
 };
 
@@ -14,14 +16,15 @@ function summarize(
   rows: Activity[],
   start: Date,
   end: Date,
-  athleteWeightKg?: number
+  athleteWeightKg?: number,
+  calorieProfile?: CalorieProfile
 ) {
   const activities = rows.filter((activity) => {
-    const date = new Date(activity.start_date_local);
-    return date >= start && date < end;
+    const date = parseStravaLocalDate(activity.start_date_local);
+    return date != null && date >= start && date < end;
   });
   const energy = activities
-    .map((activity) => activeCalories(activity, athleteWeightKg))
+    .map((activity) => activeCalories(activity, athleteWeightKg, calorieProfile))
     .filter((value): value is NonNullable<typeof value> => value != null);
 
   return {
@@ -39,9 +42,11 @@ function summarize(
 export default function WeeklyEnergyCard({
   rows,
   athleteWeightKg,
+  calorieProfile,
 }: {
   rows: Activity[];
   athleteWeightKg?: number;
+  calorieProfile?: CalorieProfile;
 }) {
   const now = new Date();
   const sevenDaysAgo = new Date(now);
@@ -49,8 +54,8 @@ export default function WeeklyEnergyCard({
   const fourteenDaysAgo = new Date(now);
   fourteenDaysAgo.setDate(now.getDate() - 14);
 
-  const current = summarize(rows, sevenDaysAgo, now, athleteWeightKg);
-  const previous = summarize(rows, fourteenDaysAgo, sevenDaysAgo, athleteWeightKg);
+  const current = summarize(rows, sevenDaysAgo, now, athleteWeightKg, calorieProfile);
+  const previous = summarize(rows, fourteenDaysAgo, sevenDaysAgo, athleteWeightKg, calorieProfile);
   const delta =
     previous.kcal > 0 ? ((current.kcal - previous.kcal) / previous.kcal) * 100 : null;
   const formatKcal = (value: number) =>

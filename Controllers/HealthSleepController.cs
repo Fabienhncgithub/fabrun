@@ -12,16 +12,16 @@ public class HealthSleepController : ControllerBase
 {
     private readonly IStravaClient _strava;
     private readonly HealthSleepService _sleep;
-    private readonly StravaTokenProtector _tokenProtector;
+    private readonly StravaTokenService _tokenService;
 
     public HealthSleepController(
         IStravaClient strava,
         HealthSleepService sleep,
-        StravaTokenProtector tokenProtector)
+        StravaTokenService tokenService)
     {
         _strava = strava;
         _sleep = sleep;
-        _tokenProtector = tokenProtector;
+        _tokenService = tokenService;
     }
 
     [HttpPost]
@@ -30,7 +30,7 @@ public class HealthSleepController : ControllerBase
         [FromBody] SleepUploadRequest body,
         CancellationToken cancellationToken)
     {
-        var token = GetBearerOrCookie();
+        var token = await GetAccessTokenAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(token))
             return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
 
@@ -70,7 +70,7 @@ public class HealthSleepController : ControllerBase
     [HttpGet("summary")]
     public async Task<IActionResult> Summary(CancellationToken cancellationToken)
     {
-        var token = GetBearerOrCookie();
+        var token = await GetAccessTokenAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(token))
             return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
 
@@ -79,6 +79,6 @@ public class HealthSleepController : ControllerBase
         return Ok(summary);
     }
 
-    private string? GetBearerOrCookie()
-        => StravaTokenResolver.Resolve(Request, _tokenProtector);
+    private Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken)
+        => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
 }

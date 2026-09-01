@@ -46,21 +46,13 @@ public static class StravaAnalytics
 
         double longest = runs.Select(a => a.distance / 1000.0).DefaultIfEmpty(0).Max();
 
-        var weekly = new Dictionary<string, double>();
-        foreach (var a in runs)
-        {
-            var d = DateTime.Parse(a.start_date_local);
-            var y = System.Globalization.ISOWeek.GetYear(d);
-            var w = System.Globalization.ISOWeek.GetWeekOfYear(d);
-            var key = $"{y}-W{w:00}";
-            weekly[key] = (weekly.TryGetValue(key, out var v) ? v : 0) + a.distance / 1000.0;
-        }
-        var sorted = weekly.OrderBy(kv => kv.Key).ToList();
-        double SumLast(int n) => sorted.TakeLast(n).Sum(kv => kv.Value);
-        var km4 = SumLast(4);
-        var km12 = SumLast(12);
-        var acr = km12 > 0 ? (km4 / 4.0) / (km12 / 12.0) : 0.0;
-
+        // Acute:chronic load (km4/km12/ACR) used to be computed here too, but
+        // it's a "right now" metric - it doesn't make sense recomputed against
+        // an arbitrary activities subset (this method also runs once per
+        // year filter for the dashboard's per-year sections) or duplicated
+        // against the frontend's own always-current-day computation in
+        // strava-front/src/utils/trainingLoad.ts. That one is now the single
+        // source of truth for training load; KpisCard reads it directly.
         static string F(double s)
         {
             if (s <= 0 || double.IsInfinity(s) || double.IsNaN(s)) return "-";
@@ -79,11 +71,7 @@ public static class StravaAnalytics
             averageHeartRate is null ? null : Math.Round(averageHeartRate.Value),
             Math.Round(strengthTrainingHours, 1),
             Math.Round(longest, 1),
-            Math.Round(totalElevationGain),
-            sorted.ToDictionary(k => k.Key, v => Math.Round(v.Value, 1)),
-            Math.Round(km4, 1),
-            Math.Round(km12, 1),
-            Math.Round(acr, 2)
+            Math.Round(totalElevationGain)
         );
     }
 
@@ -95,7 +83,7 @@ public static class StravaAnalytics
         var cand = acts
             .Select(a =>
             {
-                var local = DateTime.Parse(a.start_date_local);
+                var hasValidDate = DateTime.TryParse(a.start_date_local, out var local);
                 var utc = local.Kind == DateTimeKind.Utc ? local
                          : DateTime.SpecifyKind(local, DateTimeKind.Local).ToUniversalTime();
 
@@ -103,11 +91,12 @@ public static class StravaAnalytics
                 {
                     a,
                     startUtc = utc,
+                    hasValidDate,
                     km = a.distance / 1000.0,
                     sec = (int)Math.Round((double)a.moving_time)
                 };
             })
-            .Where(x => x.startUtc >= sinceUtc && x.km > 2.0 && x.sec > 600)
+            .Where(x => x.hasValidDate && x.startUtc >= sinceUtc && x.km > 2.0 && x.sec > 600)
             .Where(x => !string.IsNullOrWhiteSpace(x.a.sport_type) && runTypes.Contains(x.a.sport_type))
             .Select(x => new { x.km, x.sec, x.startUtc })
             .ToList();

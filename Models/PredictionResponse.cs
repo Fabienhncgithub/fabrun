@@ -19,5 +19,6 @@ public record PredictionResponse(
     PredictionReference reference,
     double exponentUsed,
     Dictionary<string, int> predictions,
-    PredictionConfidence confidence
+    PredictionConfidence confidence,
+    List<BestEffortComputed> bestEfforts
 );

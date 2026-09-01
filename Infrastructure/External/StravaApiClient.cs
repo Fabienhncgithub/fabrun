@@ -47,7 +47,7 @@ public class StravaApiClient : IStravaClient
         return QueryHelpers.AddQueryString(baseUrl, query);
     }
 
-    public async Task<JsonDocument> ExchangeCodeAsync(
+    public Task<JsonDocument> ExchangeCodeAsync(
         string clientId,
         string clientSecret,
         string code,
@@ -60,6 +60,30 @@ public class StravaApiClient : IStravaClient
             code,
             grant_type = "authorization_code"
         };
+        return PostTokenRequestAsync(body, "code exchange", cancellationToken);
+    }
+
+    public Task<JsonDocument> RefreshTokenAsync(
+        string clientId,
+        string clientSecret,
+        string refreshToken,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new
+        {
+            client_id = clientId,
+            client_secret = clientSecret,
+            refresh_token = refreshToken,
+            grant_type = "refresh_token"
+        };
+        return PostTokenRequestAsync(body, "token refresh", cancellationToken);
+    }
+
+    private async Task<JsonDocument> PostTokenRequestAsync(
+        object body,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
         var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         using var resp = await _http.PostAsync(
             "https://www.strava.com/oauth/token",
@@ -68,16 +92,20 @@ public class StravaApiClient : IStravaClient
         var json = await resp.Content.ReadAsStringAsync(cancellationToken);
         if (!resp.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Strava token exchange failed with status {StatusCode}", (int)resp.StatusCode);
+            _logger.LogWarning("Strava {Operation} failed with status {StatusCode}", operationName, (int)resp.StatusCode);
             resp.EnsureSuccessStatusCode();
         }
 
         var document = JsonDocument.Parse(json);
         var root = document.RootElement;
+        // Refresh responses don't carry a "scope" field (only the initial
+        // code exchange does) - grantedScope simply logs as "not returned"
+        // for those, which is expected rather than a sign of a problem.
         var grantedScope = root.TryGetProperty("scope", out var scope) ? scope.GetString() : null;
         var expiresAt = root.TryGetProperty("expires_at", out var expiration) ? expiration.GetInt64() : 0;
         _logger.LogInformation(
-            "Strava token exchange returned scopes {GrantedScope}; expiration timestamp present: {HasExpiration}",
+            "Strava {Operation} returned scopes {GrantedScope}; expiration timestamp present: {HasExpiration}",
+            operationName,
             grantedScope ?? "<not returned>",
             expiresAt > 0);
         return document;
@@ -97,9 +125,15 @@ public class StravaApiClient : IStravaClient
 
     public async Task<AthleteProfile> FetchAthleteProfileAsync(
         string accessToken,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false)
     {
         var cacheKey = $"strava:profile:{TokenKey(accessToken)}";
+        if (forceRefresh)
+        {
+            _cache.Remove(cacheKey);
+        }
+
         return await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
@@ -127,10 +161,15 @@ public class StravaApiClient : IStravaClient
     public async Task<List<Activity>> FetchActivitiesAsync(
         string accessToken,
         int? daysBack = 365,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false)
     {
         var daysKey = daysBack?.ToString() ?? "all";
         var cacheKey = $"strava:activities:{TokenKey(accessToken)}:{daysKey}";
+        if (forceRefresh)
+        {
+            _cache.Remove(cacheKey);
+        }
 
         return await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
@@ -292,9 +331,10 @@ public class StravaApiClient : IStravaClient
                 A = a,
                 Km = a.distance / 1000.0,
                 Sec = (int)Math.Round((double)a.moving_time),
-                DateLocal = DateTime.Parse(a.start_date_local)
+                HasValidDate = DateTime.TryParse(a.start_date_local, out var dateLocal),
+                DateLocal = dateLocal
             })
-            .Where(x => Math.Abs(x.Km - targetKm) <= tolKm && x.Km > 2.0 && x.Sec > 600)
+            .Where(x => x.HasValidDate && Math.Abs(x.Km - targetKm) <= tolKm && x.Km > 2.0 && x.Sec > 600)
             .OrderBy(x => x.Sec)
             .Take(limit)
             .Select(x => new BestEffort(

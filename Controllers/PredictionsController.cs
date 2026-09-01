@@ -14,18 +14,18 @@ public class PredictionsController : ControllerBase
     private readonly IStravaClient _strava;
     private readonly BestEffortsService _bestEfforts;
     private readonly BestEffortsStoreService _store;
-    private readonly StravaTokenProtector _tokenProtector;
+    private readonly StravaTokenService _tokenService;
 
     public PredictionsController(
         IStravaClient strava,
         BestEffortsService bestEfforts,
         BestEffortsStoreService store,
-        StravaTokenProtector tokenProtector)
+        StravaTokenService tokenService)
     {
         _strava = strava;
         _bestEfforts = bestEfforts;
         _store = store;
-        _tokenProtector = tokenProtector;
+        _tokenService = tokenService;
     }
 
     [HttpGet("running")]
@@ -34,7 +34,7 @@ public class PredictionsController : ControllerBase
         [FromQuery] bool refresh = false,
         CancellationToken cancellationToken = default)
     {
-        var token = GetBearerOrCookie();
+        var token = await GetAccessTokenAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(token))
             return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
 
@@ -65,7 +65,8 @@ public class PredictionsController : ControllerBase
                 new PredictionReference(0, 0, DateTime.MinValue, 0, "-", "none"),
                 1.06,
                 new Dictionary<string, int>(),
-                new PredictionConfidence(0, "low", new List<string> { "Aucun effort trouvé." })
+                new PredictionConfidence(0, "low", new List<string> { "Aucun effort trouvé." }),
+                new List<BestEffortComputed>()
             );
         }
 
@@ -100,7 +101,12 @@ public class PredictionsController : ControllerBase
             pick.method
         );
 
-        return new PredictionResponse(reference, exponent, predictions, confidence);
+        return new PredictionResponse(
+            reference,
+            exponent,
+            predictions,
+            confidence,
+            efforts.OrderBy(effort => effort.distanceKm).ToList());
     }
 
     private static BestEffortComputed? PickReference(List<BestEffortComputed> efforts, DateTime cutoff180)
@@ -153,6 +159,6 @@ public class PredictionsController : ControllerBase
 
     
 
-    private string? GetBearerOrCookie()
-        => StravaTokenResolver.Resolve(Request, _tokenProtector);
+    private Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken)
+        => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
 }

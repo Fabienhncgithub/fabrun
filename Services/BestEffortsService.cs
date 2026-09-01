@@ -29,16 +29,22 @@ public class BestEffortsService
              a.sport_type.Equals("VirtualRun", StringComparison.OrdinalIgnoreCase));
 
         var runs = activities.Where(IsRun)
-            .OrderByDescending(a => DateTime.Parse(a.start_date_local))
-            .Take(Math.Clamp(maxActivitiesForStreams, 1, 40))
+            .OrderByDescending(a => DateTime.TryParse(a.start_date_local, out var parsed) ? parsed : DateTime.MinValue)
+            .ToList();
+        var detailedRuns = runs
+            .Take(Math.Clamp(maxActivitiesForStreams, 0, 40))
             .ToList();
 
         var bestByTarget = new Dictionary<double, BestEffortComputed>();
-        int streamsRemaining = maxActivitiesForStreams;
+        int streamsRemaining = detailedRuns.Count;
 
-        foreach (var act in runs)
+        foreach (var act in detailedRuns)
         {
-            var actDate = DateTime.Parse(act.start_date_local);
+            // A best effort with no trustworthy date can't be placed in the
+            // recency logic PredictionsController relies on - skip the
+            // activity rather than let a malformed timestamp crash the loop
+            // or silently attribute the PB to DateTime.MinValue.
+            if (!DateTime.TryParse(act.start_date_local, out var actDate)) continue;
             var candidates = new List<BestEffortComputed>();
 
             if (streamsRemaining > 0)
@@ -75,6 +81,13 @@ public class BestEffortsService
             if (candidates.Count == 0)
             {
                 var detail = await _strava.FetchActivityDetailAsync(token, act.id, cancellationToken);
+                // detail.start_date_local describes the same activity as
+                // act.start_date_local (already validated above), so if
+                // Strava ever returns a malformed detail timestamp, fall
+                // back to the summary activity's date instead of crashing.
+                var detailDate = DateTime.TryParse(detail?.start_date_local, out var parsedDetailDate)
+                    ? parsedDetailDate
+                    : actDate;
                 if (detail?.splits_standard != null && detail.splits_standard.Count > 0)
                 {
                     foreach (var t in TargetsKm)
@@ -87,7 +100,7 @@ public class BestEffortsService
                                 timeSec: splitBest.Value.timeSec,
                                 activityId: act.id,
                                 activityName: detail.name ?? $"{t:0.#}K run",
-                                dateLocal: DateTime.Parse(detail.start_date_local),
+                                dateLocal: detailDate,
                                 method: "splits",
                                 startKm: Math.Round(splitBest.Value.startKm, 3),
                                 endKm: Math.Round(splitBest.Value.endKm, 3)
@@ -110,7 +123,7 @@ public class BestEffortsService
                                 timeSec: timeSec,
                                 activityId: act.id,
                                 activityName: detail.name ?? $"{t:0.#}K run",
-                                dateLocal: DateTime.Parse(detail.start_date_local),
+                                dateLocal: detailDate,
                                 method: "activity",
                                 startKm: 0.0,
                                 endKm: Math.Round(km, 3)
@@ -148,6 +161,40 @@ public class BestEffortsService
                 if (!bestByTarget.TryGetValue(c.distanceKm, out var current) || c.timeSec < current.timeSec)
                 {
                     bestByTarget[c.distanceKm] = c;
+                }
+            }
+        }
+
+        // Stream/detail calls are deliberately capped for Strava quota and
+        // latency, but whole-activity fallbacks are already present in the
+        // activities listing. Scan the complete requested period so an older
+        // race is not invisible merely because more than 40 runs followed it.
+        foreach (var act in runs)
+        {
+            if (act.moving_time <= 0 || !DateTime.TryParse(act.start_date_local, out var actDate))
+            {
+                continue;
+            }
+
+            var km = act.distance / 1000.0;
+            foreach (var targetKm in TargetsKm)
+            {
+                if (km <= 1.0 && targetKm > 1.0) continue;
+                if (Math.Abs(km - targetKm) / targetKm > 0.03) continue;
+
+                var candidate = new BestEffortComputed(
+                    distanceKm: targetKm,
+                    timeSec: act.moving_time,
+                    activityId: act.id,
+                    activityName: act.name ?? $"{targetKm:0.#}K run",
+                    dateLocal: actDate,
+                    method: "activity",
+                    startKm: 0.0,
+                    endKm: Math.Round(km, 3));
+
+                if (!bestByTarget.TryGetValue(targetKm, out var current) || candidate.timeSec < current.timeSec)
+                {
+                    bestByTarget[targetKm] = candidate;
                 }
             }
         }

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { parseStravaLocalDate } from "../utils/dateBuckets";
 
 type Activity = {
   sport_type: string;
@@ -28,8 +29,7 @@ function round1(v: number): number {
 }
 
 function parseDate(value: string): Date | null {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return parseStravaLocalDate(value);
 }
 
 function startOfDay(d: Date): Date {

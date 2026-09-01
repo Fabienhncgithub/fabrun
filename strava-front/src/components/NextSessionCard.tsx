@@ -1,4 +1,14 @@
 import { computeTrainingLoad } from "../utils/trainingLoad";
+import { parseStravaLocalDate } from "../utils/dateBuckets";
+import {
+  buildTcx,
+  distanceBudgetSteps,
+  downloadTextFile,
+  sixByFourHundredSteps,
+  stepDistance,
+  stepTime,
+  type WorkoutExport,
+} from "../utils/workoutExport";
 
 type Activity = {
   sport_type: string;
@@ -13,24 +23,10 @@ type Predictions = {
   predictions?: Record<string, number>;
 };
 
-type WorkoutStep = {
-  name: string;
-  durationType: "Time" | "Distance";
-  durationValue: number;
-  intensity: "Warmup" | "Active" | "Resting" | "Cooldown";
-};
-
-type WorkoutExport = {
-  fileName: string;
-  workoutName: string;
-  steps: WorkoutStep[];
-};
-
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 
 function toDate(value: string) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return parseStravaLocalDate(value);
 }
 
 function round1(v: number) {
@@ -38,64 +34,10 @@ function round1(v: number) {
 }
 
 function paceFromSecPerKm(secPerKm: number) {
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
+  const rounded = Math.round(secPerKm);
+  const m = Math.floor(rounded / 60);
+  const s = rounded % 60;
   return `${m}:${String(s).padStart(2, "0")}/km`;
-}
-
-function stepTime(name: string, seconds: number, intensity: WorkoutStep["intensity"]): WorkoutStep {
-  return { name, durationType: "Time", durationValue: seconds, intensity };
-}
-
-function stepDistance(name: string, meters: number, intensity: WorkoutStep["intensity"]): WorkoutStep {
-  return { name, durationType: "Distance", durationValue: meters, intensity };
-}
-
-function escapeXml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}
-
-function buildTcx(workout: WorkoutExport) {
-  const stepsXml = workout.steps
-    .map(
-      (step, index) => `
-      <Step>
-        <StepId>${index + 1}</StepId>
-        <Name>${escapeXml(step.name)}</Name>
-        <DurationType>${step.durationType}</DurationType>
-        <DurationValue>${step.durationValue}</DurationValue>
-        <Intensity>${step.intensity}</Intensity>
-        <TargetType>Open</TargetType>
-      </Step>`
-    )
-    .join("");
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<TrainingCenterDatabase xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd" xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <Workouts>
-    <Workout Sport="Running">
-      <Name>${escapeXml(workout.workoutName)}</Name>${stepsXml}
-      <Notes>FabRun</Notes>
-    </Workout>
-  </Workouts>
-</TrainingCenterDatabase>`;
-}
-
-function downloadTextFile(fileName: string, content: string, mime = "application/xml") {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 function analyze(rows: Activity[], predictions: Predictions | null | undefined, hasShinPain: boolean) {
@@ -118,9 +60,22 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
   }
 
   const inLastDays = (days: number) =>
-    runs.filter((r) => now.getTime() - r.date!.getTime() <= days * 24 * 3600 * 1000);
+    runs.filter((r) => {
+      const ageMs = now.getTime() - r.date!.getTime();
+      return ageMs >= 0 && ageMs <= days * 24 * 3600 * 1000;
+    });
 
   const runs28 = inLastDays(28);
+  if (runs28.length < 3) {
+    return {
+      type: "none",
+      title: "Pas assez de données récentes",
+      plan: "Synchronise au moins trois sorties récentes avant de générer une séance ciblée.",
+      why: [`${runs28.length} sortie${runs28.length > 1 ? "s" : ""} exploitable${runs28.length > 1 ? "s" : ""} sur 28 jours.`],
+      confidence: "faible",
+      workout: null as WorkoutExport | null,
+    };
+  }
   const metrics = computeTrainingLoad(rows);
   const km7 = metrics.acute7Km;
   const chronicPerWeek = metrics.chronic28AvgKm;
@@ -184,9 +139,9 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
               fileName: "fabrun-reprise-periostite.tcx",
               workoutName: "FabRun Reprise Periostite",
               steps: [
-                stepTime("Marche echauffement", 600, "Warmup"),
+                stepTime("Marche echauffement", 600, "Resting"),
                 stepDistance(`Course-marche facile ${round1(rehabKm)} km`, Math.round(rehabKm * 1000), "Active"),
-                stepTime("Marche retour au calme", 600, "Cooldown"),
+                stepTime("Marche retour au calme", 600, "Resting"),
               ],
             },
     };
@@ -200,7 +155,7 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
       plan:
         remainingToday <= 1.5
           ? `0-${round1(remainingToday)} km très facile (ou vélo doux / repos).`
-          : `${round1(Math.min(remainingToday, 6))}-${round1(Math.min(remainingToday, 7))} km très facile, allure confortable.`,
+          : `${easyKm.toFixed(1)} km très faciles, allure confortable.`,
       why: reasons,
       confidence: hrCoverage >= 0.5 ? "moyenne" : "faible",
       workout:
@@ -209,11 +164,7 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
           : {
               fileName: "fabrun-recup.tcx",
               workoutName: "FabRun Recuperation",
-              steps: [
-                stepTime("Echauffement", 600, "Warmup"),
-                stepDistance(`Endurance facile ${easyKm.toFixed(1)} km`, Math.round(easyKm * 1000), "Active"),
-                stepTime("Retour au calme", 300, "Cooldown"),
-              ],
+              steps: distanceBudgetSteps("Endurance facile", easyKm * 1000),
             },
     };
   }
@@ -231,38 +182,20 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
           : {
               fileName: "fabrun-court-facile.tcx",
               workoutName: "FabRun Court Facile",
-              steps: [
-                stepTime("Echauffement", 600, "Warmup"),
-                stepDistance(`Footing facile ${round1(remainingToday)} km`, Math.round(remainingToday * 1000), "Active"),
-                stepTime("Retour au calme", 300, "Cooldown"),
-              ],
+              steps: distanceBudgetSteps("Footing facile", remainingToday * 1000),
             },
     };
   }
 
-  if (acr >= 0.85 && acr <= 1.2) {
+  const qualityDistanceKm = 5.6;
+  if (acr >= 0.85 && acr <= 1.2 && remainingToday >= qualityDistanceKm) {
     const qualityWorkout: WorkoutExport | null =
       rep400 == null
         ? null
         : {
             fileName: "fabrun-6x400.tcx",
             workoutName: "FabRun 6x400",
-            steps: [
-              stepTime("Echauffement", 900, "Warmup"),
-              stepDistance(`400m rapide (~${rep400}s) #1`, 400, "Active"),
-              stepDistance("Recup 200m trot #1", 200, "Resting"),
-              stepDistance(`400m rapide (~${rep400}s) #2`, 400, "Active"),
-              stepDistance("Recup 200m trot #2", 200, "Resting"),
-              stepDistance(`400m rapide (~${rep400}s) #3`, 400, "Active"),
-              stepDistance("Recup 200m trot #3", 200, "Resting"),
-              stepDistance(`400m rapide (~${rep400}s) #4`, 400, "Active"),
-              stepDistance("Recup 200m trot #4", 200, "Resting"),
-              stepDistance(`400m rapide (~${rep400}s) #5`, 400, "Active"),
-              stepDistance("Recup 200m trot #5", 200, "Resting"),
-              stepDistance(`400m rapide (~${rep400}s) #6`, 400, "Active"),
-              stepDistance("Recup 200m trot #6", 200, "Resting"),
-              stepTime("Retour au calme", 600, "Cooldown"),
-            ],
+            steps: sixByFourHundredSteps(rep400),
           };
 
     return {
@@ -274,7 +207,7 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
               rep1000
             )} (récup 2').`
           : "Option A: 6 x 400 m allure 5K (récup 200 m trot). Option B: 4 x 1 km allure 10K (récup 2').",
-      why: [...reasons, `Budget restant estimé: ${round1(remainingToday)} km (ok pour une séance qualité).`],
+      why: [...reasons, `Séance exportée : ${qualityDistanceKm.toFixed(1)} km sur un budget de ${round1(remainingToday)} km.`],
       confidence: hrCoverage >= 0.5 ? "haute" : "moyenne",
       workout: qualityWorkout,
     };
@@ -284,7 +217,7 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
   return {
     type: "build",
     title: "Séance endurance active",
-    plan: `${round1(Math.min(remainingToday, 8))}-${round1(Math.min(remainingToday, 10))} km en endurance, contrôlé.`,
+    plan: `${easyKm.toFixed(1)} km en endurance contrôlée.`,
     why: reasons,
     confidence: hrCoverage >= 0.5 ? "moyenne" : "faible",
     workout:
@@ -293,11 +226,7 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
         : {
             fileName: "fabrun-endurance.tcx",
             workoutName: "FabRun Endurance Active",
-            steps: [
-              stepTime("Echauffement", 600, "Warmup"),
-              stepDistance(`Endurance ${easyKm.toFixed(1)} km`, Math.round(easyKm * 1000), "Active"),
-              stepTime("Retour au calme", 300, "Cooldown"),
-            ],
+            steps: distanceBudgetSteps("Endurance contrôlée", easyKm * 1000),
           },
   };
 }
@@ -333,10 +262,10 @@ export default function NextSessionCard({
               downloadTextFile(rec.workout!.fileName, tcx);
             }}
           >
-            Télécharger séance Garmin (.tcx)
+            Télécharger la séance (.tcx)
           </button>
           <div className="next-session-export-hint">
-            Import ensuite le fichier dans Garmin Connect.
+            Fichier TCX pour montre ou application d'entraînement compatible.
           </div>
         </div>
       )}

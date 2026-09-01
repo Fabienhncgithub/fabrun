@@ -1,3 +1,6 @@
+import EmptyState from "./EmptyState";
+import { parseStravaLocalDate } from "../utils/dateBuckets";
+
 type PredictionReference = {
   distanceKm: number;
   timeSec: number;
@@ -18,6 +21,16 @@ type PredictionResponse = {
   exponentUsed: number;
   predictions: Record<string, number>;
   confidence: PredictionConfidence;
+  bestEfforts?: BestEffort[];
+};
+
+type BestEffort = {
+  distanceKm: number;
+  timeSec: number;
+  activityId: number;
+  activityName: string;
+  dateLocal: string;
+  method: string;
 };
 
 const fmtTime = (sec: number) => {
@@ -30,14 +43,34 @@ const fmtTime = (sec: number) => {
 
 const fmtDate = (value: string) => {
   if (!value) return "-";
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleDateString();
+  const date = parseStravaLocalDate(value);
+  return date ? date.toLocaleDateString() : "-";
 };
 
 const confidenceLabel = (level: string) => {
   if (level === "high") return "Confiance élevée";
   if (level === "medium") return "Confiance moyenne";
   return "Confiance faible";
+};
+
+const distanceLabel = (distanceKm: number) => {
+  if (Math.abs(distanceKm - 21.097) < 0.02) return "Semi";
+  if (Math.abs(distanceKm - 42.195) < 0.02) return "Marathon";
+  return `${distanceKm.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km`;
+};
+
+const paceLabel = (seconds: number, distanceKm: number) => {
+  if (seconds <= 0 || distanceKm <= 0) return "—";
+  const secondsPerKm = Math.round(seconds / distanceKm);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const remainingSeconds = secondsPerKm % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}/km`;
+};
+
+const methodLabel = (method: string) => {
+  if (method === "streams") return "GPS précis";
+  if (method === "splits") return "Splits km";
+  return "Activité complète";
 };
 
 export default function PerformancePredictionsCard({
@@ -53,10 +86,16 @@ export default function PerformancePredictionsCard({
     return (
       <div className="panel">
         <div className="panel-head">Estimations actuelles</div>
-        <p>Aucune estimation disponible.</p>
-        <button className="btn" onClick={onRefresh} disabled={loading}>
-          {loading ? "Calcul..." : "Recalculer"}
-        </button>
+        <EmptyState
+          icon="📈"
+          title="Aucune estimation"
+          message="Pas encore assez d'activités pour calculer une estimation fiable."
+          action={
+            <button className="btn" onClick={onRefresh} disabled={loading}>
+              {loading ? "Calcul..." : "Recalculer"}
+            </button>
+          }
+        />
       </div>
     );
   }
@@ -113,6 +152,28 @@ export default function PerformancePredictionsCard({
       <p className="prediction-hint">
         Les estimations sont plus fiables si ton effort source est récent et proche d’une course.
       </p>
+
+      {data.bestEfforts && data.bestEfforts.length > 0 && (
+        <div className="best-efforts-section">
+          <h3>Meilleurs efforts détectés</h3>
+          <div className="best-efforts-grid">
+            {data.bestEfforts.map((effort) => (
+              <a
+                className="best-effort-item"
+                href={`https://www.strava.com/activities/${effort.activityId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                key={`${effort.distanceKm}-${effort.activityId}`}
+              >
+                <span className="best-effort-distance">{distanceLabel(effort.distanceKm)}</span>
+                <strong>{fmtTime(effort.timeSec)}</strong>
+                <span>{paceLabel(effort.timeSec, effort.distanceKm)}</span>
+                <small>{fmtDate(effort.dateLocal)} • {methodLabel(effort.method)}</small>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <button className="btn" onClick={onRefresh} disabled={loading}>
         {loading ? "Calcul..." : "Recalculer"}

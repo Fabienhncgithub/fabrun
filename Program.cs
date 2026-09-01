@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,7 +39,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
             Microsoft.Net.Http.Headers.HeaderNames.ContentType,
             Microsoft.Net.Http.Headers.HeaderNames.Authorization,
             SecurityHeaders.Csrf)
-        .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Options)
+        .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Options)
         .AllowCredentials()));
 
 builder.Services
@@ -50,10 +51,13 @@ builder.Services
     });
 builder.Services.AddSingleton<ISleepRepository, FileSleepRepository>();
 builder.Services.AddSingleton<IBestEffortsRepository, FileBestEffortsRepository>();
+builder.Services.AddSingleton<IAthleteSettingsRepository, FileAthleteSettingsRepository>();
 builder.Services.AddSingleton<HealthSleepService>();
 builder.Services.AddSingleton<BestEffortsStoreService>();
 builder.Services.AddSingleton<BestEffortsService>();
+builder.Services.AddSingleton<AthleteSettingsService>();
 builder.Services.AddSingleton<StravaTokenProtector>();
+builder.Services.AddSingleton<StravaTokenService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddRequestTimeouts(options =>
 {
@@ -140,8 +144,32 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddAuthorization(options =>
 {
+    // Dev convenience: opt-in, explicit flag (appsettings.Development.json)
+    // to skip typing the access password on localhost. Read live per-request
+    // (not captured at startup) so the security integration tests -- which
+    // run under "Development" on purpose to exercise the real auth gate --
+    // can override it via their own configuration. Production can never
+    // enable this: ValidateProductionConfiguration above doesn't read it,
+    // and it's not set in any non-Development appsettings file.
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
+        {
+            if (context.User.Identity?.IsAuthenticated == true)
+            {
+                return true;
+            }
+
+            if (context.Resource is not HttpContext httpContext)
+            {
+                return false;
+            }
+
+            var services = httpContext.RequestServices;
+            var environment = services.GetRequiredService<IHostEnvironment>();
+            var configuration = services.GetRequiredService<IConfiguration>();
+            return environment.IsDevelopment()
+                && configuration.GetValue<bool>("FABRUN_DEV_SKIP_ACCESS_PASSWORD");
+        })
         .Build();
 });
 builder.Services.AddEndpointsApiExplorer();
@@ -172,6 +200,27 @@ app.Use(async (context, next) =>
     }
 
     await next();
+});
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (HttpRequestException ex) when (!context.Response.HasStarted)
+    {
+        var (statusCode, message) = MapUpstreamError(ex);
+        app.Logger.LogWarning(
+            ex,
+            "Upstream Strava request failed with mapped status {StatusCode}",
+            statusCode);
+        context.Response.Clear();
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(
+            new { error = message },
+            cancellationToken: context.RequestAborted);
+    }
 });
 app.UseRateLimiter();
 app.UseRequestTimeouts();
@@ -206,6 +255,25 @@ static bool IsSensitivePath(PathString path) =>
     || path.StartsWithSegments("/auth")
     || path.StartsWithSegments("/oauth")
     || path.StartsWithSegments("/access");
+
+static (int StatusCode, string Message) MapUpstreamError(HttpRequestException exception) =>
+    exception.StatusCode switch
+    {
+        HttpStatusCode.Unauthorized => (
+            StatusCodes.Status401Unauthorized,
+            "Token Strava invalide ou expiré. Reconnecte-toi."),
+        HttpStatusCode.Forbidden => (
+            StatusCodes.Status403Forbidden,
+            exception.Message.Contains("inactive", StringComparison.OrdinalIgnoreCase)
+                ? "L'application API Strava est inactive. Active-la depuis les paramètres API Strava."
+                : "Strava refuse cet accès. Reconnecte-toi et vérifie les autorisations accordées."),
+        HttpStatusCode.TooManyRequests => (
+            StatusCodes.Status429TooManyRequests,
+            "Limite Strava atteinte. Réessaie dans quelques minutes."),
+        _ => (
+            StatusCodes.Status502BadGateway,
+            "Strava est momentanément indisponible. Réessaie plus tard.")
+    };
 
 static string NormalizeOrigin(string value)
 {

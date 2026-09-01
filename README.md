@@ -10,12 +10,25 @@ Le projet réunit une API ASP.NET Core et une interface React. L’authentificat
 - indicateurs de volume, allure, fréquence cardiaque et dénivelé ;
 - comparaison des statistiques annuelles ;
 - suivi de la charge d’entraînement et de la récupération ;
+- calendrier annuel des jours courus, consultable sur l’année en cours et la précédente ;
 - estimation des performances sur 5 km, 10 km, semi-marathon et marathon ;
 - calcul des meilleurs efforts à partir des flux et segments Strava ;
+- objectifs de course multiples avec date, compte à rebours et temps estimé ;
 - recommandations pour la prochaine séance ;
-- export des séances au format TCX ;
-- suivi facultatif du sommeil ;
-- suivi de l’utilisation des chaussures.
+- plan hebdomadaire adaptatif : kilomètres réalisés importés, volume restant
+  redistribué sans rattrapage brutal et reprise périostite avec jours de repos ;
+- export des séances au format TCX v2 pour les appareils et applications compatibles ;
+- suivi facultatif du sommeil par import HealthKit ;
+- suivi précis de chaque paire de chaussures à partir de l’équipement associé
+  aux activités Strava, avec seuil de remplacement personnalisé, allure d’usure
+  récente et date de remplacement projetée ;
+- recherche et filtrage des activités, identification de la paire utilisée et
+  export CSV de la vue courante ;
+- poids Strava utilisé automatiquement pour les estimations de dépense énergétique ;
+- préférences athlète, objectifs et réglages des chaussures conservés côté serveur ;
+- thème clair/sombre mémorisé et interface installable sur l’écran d’accueil ;
+- navigation visuelle vers les fonctions principales et aides de lecture
+  contextuelles dans les cartes complexes.
 
 ## Architecture
 
@@ -97,7 +110,7 @@ L’accès se déroule en deux étapes :
 1. saisie du mot de passe privé FabRun ;
 2. autorisation de l’application auprès de Strava.
 
-La session FabRun et le jeton Strava sont enregistrés dans des cookies `HttpOnly`, `Secure` et `SameSite=Lax`. Le jeton Strava est chiffré et authentifié avec les clés Data Protection de l’API. Les endpoints métier nécessitent une session FabRun valide et les requêtes qui modifient des données sont protégées contre les attaques CSRF.
+La session FabRun et le jeton Strava sont enregistrés dans des cookies `HttpOnly`, `Secure` et `SameSite=Lax`. Le cookie Strava contient le jeton d’accès et le jeton de rafraîchissement, chiffrés et authentifiés avec les clés Data Protection de l’API ; `StravaTokenService` renouvelle le jeton d’accès automatiquement avant son expiration, donc la connexion Strava reste active tant que l’app est rouverte au moins une fois toutes les ~90 jours, sans repasser par l’écran d’autorisation Strava. Les endpoints métier nécessitent une session FabRun valide et les requêtes qui modifient des données sont protégées contre les attaques CSRF.
 
 ## Endpoints principaux
 
@@ -115,6 +128,13 @@ La session FabRun et le jeton Strava sont enregistrés dans des cookies `HttpOnl
 | `GET` | `/api/profile` | Profil et chaussures |
 | `GET` | `/api/predictions/running` | Estimations de performance |
 | `POST` | `/api/health/sleep` | Import de sessions de sommeil |
+| `GET` | `/api/health/sleep/summary` | Synthèse des nuits enregistrées |
+| `GET` | `/api/settings` | Préférences athlète (périostite, objectifs et chaussures) |
+| `PUT` | `/api/settings` | Mise à jour des préférences athlète |
+
+Le bouton de rafraîchissement du dashboard contourne volontairement le cache
+court de l’API pour relire Strava. Les chargements automatiques conservent ce
+cache afin de limiter la latence et la consommation du quota Strava.
 
 ## Tests et vérifications
 
@@ -128,6 +148,7 @@ Vérifier l’interface :
 
 ```bash
 cd strava-front
+npm test
 npm run lint
 npm run build
 ```

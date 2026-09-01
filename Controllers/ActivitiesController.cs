@@ -16,22 +16,22 @@ namespace FabRun.Api.Controllers
     {
         private readonly IStravaClient _strava;
         private readonly HealthSleepService _sleep;
-        private readonly StravaTokenProtector _tokenProtector;
+        private readonly StravaTokenService _tokenService;
 
         public ActivitiesController(
             IStravaClient strava,
             HealthSleepService sleep,
-            StravaTokenProtector tokenProtector)
+            StravaTokenService tokenService)
         {
             _strava = strava;
             _sleep = sleep;
-            _tokenProtector = tokenProtector;
+            _tokenService = tokenService;
         }
 
         [HttpGet("activities")]
         public async Task<IActionResult> GetActivities(CancellationToken cancellationToken)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             try
@@ -48,7 +48,7 @@ namespace FabRun.Api.Controllers
         [HttpGet("kpis")]
         public async Task<IActionResult> GetKpis(CancellationToken cancellationToken)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             try
@@ -65,7 +65,7 @@ namespace FabRun.Api.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile(CancellationToken cancellationToken)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             try
@@ -81,15 +81,22 @@ namespace FabRun.Api.Controllers
 
         [HttpGet("dashboard")]
         [EnableRateLimiting("strava-heavy")]
-        public async Task<IActionResult> GetDashboard(CancellationToken cancellationToken)
+        public async Task<IActionResult> GetDashboard(
+            [FromQuery] bool refresh = false,
+            CancellationToken cancellationToken = default)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             try
             {
                 // Pull complet pour calculer les KPI "depuis toujours" correctement.
-                var allActivities = await _strava.FetchActivitiesAsync(token, null, cancellationToken);
+                // Profil et activités sont indépendants : les charger en parallèle
+                // évite d'ajouter la latence du profil à celle de la pagination.
+                var activitiesTask = _strava.FetchActivitiesAsync(token, null, cancellationToken, refresh);
+                var profileTask = _strava.FetchAthleteProfileAsync(token, cancellationToken, refresh);
+                await Task.WhenAll(activitiesTask, profileTask);
+                var allActivities = await activitiesTask;
 
                 // La table du dashboard reste bornée aux 12 derniers mois pour rester lisible.
                 var tableCutoff = DateTime.Today.AddDays(-365);
@@ -125,12 +132,22 @@ namespace FabRun.Api.Controllers
                     return parsed.Year == currentYear - 1;
                 });
                 var kpisPreviousYear = StravaAnalytics.ComputeKpis(previousYearActivities, "previous_year");
-                var profile = await _strava.FetchAthleteProfileAsync(token, cancellationToken);
+                var heatmapActivities = allActivities.Where(a =>
+                {
+                    if (!DateTime.TryParse(a.start_date_local, out var parsed))
+                    {
+                        return false;
+                    }
+
+                    return parsed.Year >= currentYear - 1 && parsed.Year <= currentYear;
+                }).ToList();
+                var profile = await profileTask;
                 var sleepSummary = await _sleep.GetSummaryAsync(profile.id);
 
                 return Ok(new
                 {
                     activities,
+                    heatmapActivities,
                     kpis,
                     kpisCurrentYear,
                     kpisPreviousYear,
@@ -151,7 +168,7 @@ namespace FabRun.Api.Controllers
             [FromQuery, Range(1.0, 1.2)] double exponent = 1.06,
             CancellationToken cancellationToken = default)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token))
                 return Unauthorized(new { error = "Missing Bearer token" });
 
@@ -183,7 +200,7 @@ namespace FabRun.Api.Controllers
             [FromQuery, Range(1, 100)] int limit = 10,
             CancellationToken cancellationToken = default)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             var list = await _strava.GetTopBest5kAsync(token, days, limit, cancellationToken);
@@ -197,7 +214,7 @@ namespace FabRun.Api.Controllers
             [FromQuery, Range(1, 100)] int limit = 10,
             CancellationToken cancellationToken = default)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             var list = await _strava.GetTopBestXAsync(token, 10_000, "10K", days, limit, cancellationToken);
@@ -211,7 +228,7 @@ namespace FabRun.Api.Controllers
             [FromQuery, Range(1, 100)] int limit = 10,
             CancellationToken cancellationToken = default)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             var list = await _strava.GetTopBestXAsync(token, 21_097.5, "HM", days, limit, cancellationToken);
@@ -225,15 +242,15 @@ namespace FabRun.Api.Controllers
             [FromQuery, Range(1, 100)] int limit = 10,
             CancellationToken cancellationToken = default)
         {
-            var token = GetBearerOrCookie();
+            var token = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(token)) return Unauthorized();
 
             var list = await _strava.GetTopBestXAsync(token, 42_195, "M", days, limit, cancellationToken);
             return Ok(Format(list));
         }
 
-        private string? GetBearerOrCookie()
-            => StravaTokenResolver.Resolve(Request, _tokenProtector);
+        private Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken)
+            => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
 
         private static object Format(IEnumerable<BestEffort> items) =>
             items.Select(r => new {

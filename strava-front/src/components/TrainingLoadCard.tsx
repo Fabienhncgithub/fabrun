@@ -30,10 +30,12 @@ export default function TrainingLoadCard({
   rows,
   hasShinPain,
   onShinPainChange,
+  settingsSaving = false,
 }: {
   rows: Activity[];
   hasShinPain: boolean;
   onShinPainChange: (value: boolean) => void;
+  settingsSaving?: boolean;
 }) {
   const metrics = computeTrainingLoad(rows);
   const periostitis = metrics.periostitis;
@@ -50,11 +52,17 @@ export default function TrainingLoadCard({
           type="checkbox"
           role="switch"
           checked={hasShinPain}
+          disabled={settingsSaving}
           onChange={(event) => onShinPainChange(event.target.checked)}
         />
         <span className="training-switch" aria-hidden="true" />
         <strong>{hasShinPain ? "Oui" : "Non"}</strong>
       </label>
+      <p className={`training-mode-explainer ${hasShinPain ? "training-mode-explainer-active" : ""}`}>
+        {hasShinPain
+          ? "Mode actif : le conseil du jour et le plan hebdomadaire passent immédiatement en reprise prudente."
+          : "Active ce bouton si une douleur de périostite est présente : FabRun retirera vitesse, côtes et jours consécutifs."}
+      </p>
 
       <div className="training-load-head">
         {hasShinPain && <span className="training-injury-mode">Reprise périostite</span>}
@@ -102,15 +110,17 @@ export default function TrainingLoadCard({
         </div>
       </div>
 
-      <div className="training-rehab-plan">
-        {periostitis.progression.map((week) => (
-          <div key={week.label} className="training-rehab-step">
-            <span>{week.label}</span>
-            <strong>{week.km.toFixed(1)} km max</strong>
-            <small>{week.note}</small>
-          </div>
-        ))}
+      <div className="training-rehab-progress" aria-label="Utilisation du plafond de reprise">
+        <span style={{ width: `${periostitis.weeklyCapKm > 0 ? Math.min(100, periostitis.currentWeekKm / periostitis.weeklyCapKm * 100) : 0}%` }} />
       </div>
+      <div className="training-rehab-progress-labels">
+        <span>Couru {periostitis.currentWeekKm.toFixed(1)} km</span>
+        <span>Limite {periostitis.weeklyCapKm.toFixed(1)} km</span>
+      </div>
+
+      <a className="training-plan-link" href="#plan-semaine">
+        Voir comment le reste de la semaine et S+1 sont recalculés →
+      </a>
       </>}
 
       <p className="training-meta">

@@ -4,6 +4,12 @@ export type EnergyActivity = {
   average_speed?: number;
   total_elevation_gain?: number;
   calories?: number;
+  average_heartrate?: number | null;
+};
+
+export type CalorieProfile = {
+  ageYears?: number | null;
+  sex?: "male" | "female" | null;
 };
 
 const GRAVITY_M_S2 = 9.80665;
@@ -51,9 +57,30 @@ function estimateMet(activity: EnergyActivity): number | null {
   }
 }
 
+// Keytel et al. (2005) heart-rate-based calorie estimate. More accurate than
+// a generic MET table because it uses this specific effort's average heart
+// rate rather than a speed bucket, but needs age + sex (weight alone isn't
+// enough) - both optional profile fields, so this is a priority tier, not
+// the only path: MET is still the fallback when they're not set.
+function keytelCalories(
+  avgHeartRate: number,
+  athleteWeightKg: number,
+  ageYears: number,
+  sex: "male" | "female",
+  minutes: number
+): number {
+  const perMinute =
+    sex === "male"
+      ? -55.0969 + 0.6309 * avgHeartRate + 0.1988 * athleteWeightKg + 0.2017 * ageYears
+      : -20.4022 + 0.4472 * avgHeartRate - 0.1263 * athleteWeightKg + 0.074 * ageYears;
+
+  return Math.max(0, (perMinute / 4.184) * minutes);
+}
+
 export function activeCalories(
   activity: EnergyActivity,
-  athleteWeightKg?: number
+  athleteWeightKg?: number,
+  calorieProfile?: CalorieProfile
 ): { value: number; estimated: boolean } | null {
   if (activity.calories && activity.calories > 0) {
     return { value: activity.calories, estimated: false };
@@ -61,6 +88,23 @@ export function activeCalories(
 
   if (!athleteWeightKg || athleteWeightKg <= 0 || activity.moving_time <= 0) {
     return null;
+  }
+
+  const minutes = activity.moving_time / 60;
+  const { ageYears, sex } = calorieProfile ?? {};
+  if (
+    typeof activity.average_heartrate === "number" &&
+    activity.average_heartrate > 0 &&
+    typeof ageYears === "number" &&
+    ageYears > 0 &&
+    (sex === "male" || sex === "female")
+  ) {
+    return {
+      value:
+        keytelCalories(activity.average_heartrate, athleteWeightKg, ageYears, sex, minutes) +
+        climbingCalories(activity, athleteWeightKg),
+      estimated: true,
+    };
   }
 
   const met = estimateMet(activity);

@@ -32,7 +32,12 @@ public sealed class SecurityIntegrationTests : IDisposable
                         ["STRAVA_CLIENT_ID"] = "12345",
                         ["STRAVA_CLIENT_SECRET"] = "test-strava-secret-value",
                         ["BASE_URL"] = "https://localhost",
-                        ["WEB_ORIGIN"] = "https://localhost"
+                        ["WEB_ORIGIN"] = "https://localhost",
+                        // Overrides the dev-convenience default from
+                        // appsettings.Development.json: these tests exercise
+                        // the real auth gate even though they run under
+                        // "Development".
+                        ["FABRUN_DEV_SKIP_ACCESS_PASSWORD"] = "false"
                     }));
             });
 
@@ -51,11 +56,13 @@ public sealed class SecurityIntegrationTests : IDisposable
         var csrf = await _client.GetAsync("/access/csrf");
         var stravaStatus = await _client.GetAsync("/auth/status");
         var activities = await _client.GetAsync("/api/activities");
+        var settings = await _client.GetAsync("/api/settings");
 
         Assert.Equal(HttpStatusCode.OK, accessStatus.StatusCode);
         Assert.Equal(HttpStatusCode.OK, csrf.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, stravaStatus.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, activities.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, settings.StatusCode);
     }
 
     [Fact]
@@ -64,6 +71,26 @@ public sealed class SecurityIntegrationTests : IDisposable
         var response = await _client.PostAsJsonAsync("/access/login", new { password = Password });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CorsPreflight_AllowsAthleteSettingsPut()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/settings");
+        request.Headers.Add("Origin", "https://localhost:5173");
+        request.Headers.Add("Access-Control-Request-Method", "PUT");
+        request.Headers.Add("Access-Control-Request-Headers", "content-type,x-csrf-token");
+
+        var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(
+            "https://localhost:5173",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Contains(
+            "PUT",
+            response.Headers.GetValues("Access-Control-Allow-Methods").Single(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

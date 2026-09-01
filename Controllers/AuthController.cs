@@ -16,14 +16,14 @@ public class AuthController : ControllerBase
     private readonly IStravaClient _strava;
     private readonly ILogger<AuthController> _logger;
     private readonly ITimeLimitedDataProtector _stateProtector;
-    private readonly StravaTokenProtector _tokenProtector;
+    private readonly StravaTokenService _tokenService;
 
     public AuthController(
         IConfiguration cfg,
         IStravaClient strava,
         ILogger<AuthController> logger,
         IDataProtectionProvider dataProtection,
-        StravaTokenProtector tokenProtector)
+        StravaTokenService tokenService)
     {
         _cfg = cfg;
         _strava = strava;
@@ -31,7 +31,7 @@ public class AuthController : ControllerBase
         _stateProtector = dataProtection
             .CreateProtector("FabRun.StravaOAuth.State.v2")
             .ToTimeLimitedDataProtector();
-        _tokenProtector = tokenProtector;
+        _tokenService = tokenService;
     }
 
     [HttpGet("/auth/login")]
@@ -81,37 +81,31 @@ public class AuthController : ControllerBase
         var secret     = _cfg["STRAVA_CLIENT_SECRET"] ?? throw new Exception("STRAVA_CLIENT_SECRET missing in config");
 
         using var doc = await _strava.ExchangeCodeAsync(id, secret, code, cancellationToken);
-        var access = doc.RootElement.GetProperty("access_token").GetString();
-        if (string.IsNullOrWhiteSpace(access) || access.Length > 2048)
-            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Strava n'a pas renvoyé de jeton." });
+        var bundle = StravaTokenService.BundleFromTokenResponse(doc);
+        if (bundle is null)
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Strava n'a pas renvoyé de jeton valide." });
 
-        var expiresAt = doc.RootElement.TryGetProperty("expires_at", out var expiresElement)
-            && expiresElement.TryGetInt64(out var unixExpires)
-                ? DateTimeOffset.FromUnixTimeSeconds(unixExpires)
-                : DateTimeOffset.UtcNow.AddHours(6);
-        var lifetime = expiresAt - DateTimeOffset.UtcNow;
-        if (lifetime <= TimeSpan.Zero)
-            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Strava a renvoyé un jeton expiré." });
-        lifetime = TimeSpan.FromTicks(Math.Min(lifetime.Ticks, TimeSpan.FromHours(12).Ticks));
-
-        Response.Cookies.Append(
-            SecurityCookies.StravaAccessToken,
-            _tokenProtector.Protect(access),
-            SecureCookieOptions(lifetime));
+        // Storing the bundle (access + refresh token) rather than just the
+        // access token is what lets StravaTokenService renew the connection
+        // on its own later, instead of the cookie's lifetime being capped to
+        // Strava's short-lived access token.
+        _tokenService.Store(HttpContext, bundle);
         Response.Cookies.Delete(SecurityCookies.OAuthState, SecureCookieOptions());
         _logger.LogInformation(
-            "Strava OAuth exchange succeeded; access token present: {HasAccessToken}; redirecting to {FrontOrigin}",
-            !string.IsNullOrWhiteSpace(access),
+            "Strava OAuth exchange succeeded; refresh token present: {HasRefreshToken}; redirecting to {FrontOrigin}",
+            true,
             frontOrigin);
         return Redirect(frontOrigin);
     }
 
     [HttpGet("/auth/status")]
-    public IActionResult Status()
+    public async Task<IActionResult> Status(CancellationToken cancellationToken)
     {
-        var connected = Request.Cookies.TryGetValue(SecurityCookies.StravaAccessToken, out var cookie)
-            && _tokenProtector.TryUnprotect(cookie, out _);
-        return Ok(new { connected });
+        // Resolving also renews an expiring token and clears an unusable
+        // refresh token. Status therefore reflects a usable connection,
+        // not merely the presence of an old cookie.
+        var accessToken = await _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
+        return Ok(new { connected = !string.IsNullOrWhiteSpace(accessToken) });
     }
 
     private string ResolveFrontOrigin(string? candidate)

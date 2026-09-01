@@ -13,5 +13,6 @@ public record Activity(
     double? kilojoules = null,
     double? average_heartrate = null,
     double? max_heartrate = null,
-    double? max_speed = null
+    double? max_speed = null,
+    string? gear_id = null
 );

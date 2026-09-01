@@ -13,6 +13,9 @@
 }
 
 .topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -21,8 +24,9 @@
   border: 1px solid var(--line);
   border-left: 4px solid var(--strava-orange);
   border-radius: var(--radius-card);
-  background: var(--card);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
   box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px);
 }
 
 .brand-block {
@@ -52,6 +56,26 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-toggle:hover {
+  border-color: var(--strava-orange);
+  transform: translateY(-1px);
 }
 
 .btn {
@@ -87,6 +111,13 @@
   font-weight: 700;
 }
 
+.topbar-last-sync {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .main {
   display: flex;
   flex-direction: column;
@@ -109,6 +140,66 @@
   letter-spacing: 0.02em;
 }
 
+.dashboard-last-sync {
+  margin: -6px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dashboard-nav {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-nav a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  text-decoration: none;
+  transition: border-color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.dashboard-nav a:hover {
+  border-color: color-mix(in srgb, var(--strava-orange) 55%, var(--line));
+  transform: translateY(-2px);
+}
+
+.dashboard-nav a > span {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--strava-orange);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.dashboard-nav strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-nav small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel[id] {
+  scroll-margin-top: 104px;
+}
+
 .two-cols {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -122,6 +213,89 @@
   border-radius: 12px;
   padding: 11px 12px;
   font-weight: 600;
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-line,
+.skeleton-block {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eceef1 25%, #f5f6f8 37%, #eceef1 63%);
+  background-size: 400% 100%;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+.skeleton-title {
+  width: 40%;
+  height: 16px;
+}
+
+.skeleton-line {
+  width: 90%;
+  height: 12px;
+}
+
+.skeleton-line-short {
+  width: 55%;
+}
+
+.skeleton-chart {
+  height: 160px;
+  width: 100%;
+}
+
+.skeleton-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skeleton-tile {
+  height: 54px;
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@include bp.dashboard-compact {
+  .skeleton-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card-error-fallback {
+  border: 1px dashed #f5c3c3;
+  background: #fff5f5;
+  border-radius: var(--radius-card);
+  padding: 14px;
+}
+
+.card-error-title {
+  color: var(--danger);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.card-error-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .kpis-grid {
@@ -179,6 +353,64 @@
   font-size: 18px;
   font-weight: 700;
   color: var(--ink);
+}
+
+.activities-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.activities-table-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.activities-table-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.activities-table-search {
+  flex: 1 1 240px;
+}
+
+.activities-table-search input {
+  width: min(100%, 320px);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.activities-export {
+  padding-block: 8px;
+}
+
+.activities-table-link {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.activities-table-link:hover {
+  border-bottom-color: var(--strava-orange);
+}
+
+.activities-table-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px 8px;
+}
+
+.activities-table-more {
+  margin-top: 12px;
 }
 
 .activities-table-wrap {
@@ -306,6 +538,21 @@
   cursor: pointer;
 }
 
+.training-mode-explainer {
+  margin: -5px 0 12px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+  background: var(--surface-soft);
+  font-size: 12px;
+}
+
+.training-mode-explainer-active {
+  border-left-color: #f59e0b;
+  color: var(--ink);
+  background: color-mix(in srgb, #f59e0b 9%, var(--card));
+}
+
 .training-pain-toggle input {
   position: absolute;
   opacity: 0;
@@ -370,28 +617,178 @@
   border: 1px solid #fdba74;
 }
 
+// Status-tone family: see --tone-* custom properties in styles/base.scss.
+// One set of tokens, consumed here and by .training-confidence-*,
+// .badge-*, .form-pill-*, .shoe-item-*/.shoe-life-fill-* below, so light
+// and dark values live in exactly one place instead of being redefined
+// (slightly differently) per card.
+.year-heatmap-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.year-heatmap-years {
+  display: flex;
+  gap: 6px;
+}
+
+.year-heatmap-year-btn {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.year-heatmap-year-btn-active {
+  border-color: var(--strava-orange);
+  color: var(--strava-orange);
+  background: color-mix(in srgb, var(--strava-orange) 10%, var(--surface-soft));
+}
+
+.year-heatmap-scroll {
+  overflow-x: auto;
+}
+
+.year-heatmap-grid {
+  display: flex;
+  gap: 3px;
+  width: fit-content;
+}
+
+.year-heatmap-weekday-col,
+.year-heatmap-week-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.year-heatmap-weekday-col {
+  margin-right: 4px;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.year-heatmap-weekday-col span {
+  height: 11px;
+  line-height: 11px;
+}
+
+.year-heatmap-weekday-dim {
+  visibility: hidden;
+}
+
+.year-heatmap-month-spacer,
+.year-heatmap-month-label {
+  height: 14px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.year-heatmap-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--surface-muted);
+  display: block;
+}
+
+.year-heatmap-cell-level-0 { background: var(--surface-muted); }
+.year-heatmap-cell-level-1 { background: color-mix(in srgb, var(--tone-good-solid) 30%, var(--surface-muted)); }
+.year-heatmap-cell-level-2 { background: color-mix(in srgb, var(--tone-good-solid) 55%, var(--surface-muted)); }
+.year-heatmap-cell-level-3 { background: color-mix(in srgb, var(--tone-good-solid) 78%, var(--surface-muted)); }
+.year-heatmap-cell-level-4 { background: var(--tone-good-solid); }
+.year-heatmap-cell-level-muted { background: transparent; }
+
+.year-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.year-heatmap-summary {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.acr-alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.acr-alert-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-state-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.empty-state-title {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.empty-state-message {
+  margin: 0;
+  max-width: 32ch;
+  font-size: 13px;
+}
+
+.empty-state-action {
+  margin-top: 6px;
+}
+
 .training-zone-green {
-  background: #ecfdf3;
-  border: 1px solid #b7e6ca;
-  color: #11693f;
+  background: var(--tone-good-bg);
+  border: 1px solid var(--tone-good-border);
+  color: var(--tone-good-text);
 }
 
 .training-zone-orange {
-  background: #fff7ed;
-  border: 1px solid #ffd9b0;
-  color: #a74606;
+  background: var(--tone-warn-bg);
+  border: 1px solid var(--tone-warn-border);
+  color: var(--tone-warn-text);
 }
 
 .training-zone-red {
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-  color: #be123c;
+  background: var(--tone-bad-bg);
+  border: 1px solid var(--tone-bad-border);
+  color: var(--tone-bad-text);
 }
 
 .training-zone-insufficient_data {
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  color: #4b5563;
+  background: var(--tone-neutral-bg);
+  border: 1px solid var(--tone-neutral-border);
+  color: var(--tone-neutral-text);
 }
 
 .training-acr {
@@ -411,21 +808,21 @@
 }
 
 .training-confidence-high {
-  color: #0f5132;
-  background: #e8fff3;
-  border: 1px solid #a7e3c5;
+  color: var(--tone-good-text);
+  background: var(--tone-good-bg);
+  border: 1px solid var(--tone-good-border);
 }
 
 .training-confidence-medium {
-  color: #7c2d12;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
+  color: var(--tone-warn-text);
+  background: var(--tone-warn-bg);
+  border: 1px solid var(--tone-warn-border);
 }
 
 .training-confidence-low {
-  color: #7f1d1d;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
+  color: var(--tone-bad-text);
+  background: var(--tone-bad-bg);
+  border: 1px solid var(--tone-bad-border);
 }
 
 .training-main {
@@ -470,8 +867,7 @@
   margin-top: 12px;
 }
 
-.training-rehab-summary > div,
-.training-rehab-step {
+.training-rehab-summary > div {
   display: grid;
   gap: 3px;
   padding: 9px;
@@ -480,27 +876,52 @@
   background: #fffaf5;
 }
 
-.training-rehab-summary span,
-.training-rehab-step span,
-.training-rehab-step small {
+.training-rehab-progress {
+  height: 10px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, #f59e0b 38%, var(--line));
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.training-rehab-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e, #f59e0b);
+}
+
+.training-rehab-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+.training-rehab-summary span {
   color: #7c5b45;
   font-size: 11px;
 }
 
-.training-rehab-plan {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.training-rehab-step strong {
-  color: #7c2d12;
+.training-plan-link {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 9px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration-color: color-mix(in srgb, var(--strava-orange) 55%, transparent);
+  text-underline-offset: 3px;
 }
 
 @include bp.mobile {
-  .training-rehab-summary,
-  .training-rehab-plan {
+  .training-rehab-summary {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -627,7 +1048,7 @@
 
 .weekly-plan-card {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .weekly-plan-head {
@@ -646,6 +1067,12 @@
   color: #111827;
 }
 
+.weekly-plan-subtitle {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .weekly-plan-target {
   font-size: 13px;
   font-weight: 800;
@@ -654,6 +1081,134 @@
   border: 1px solid #e5e7eb;
   border-radius: 999px;
   padding: 5px 10px;
+}
+
+.weekly-plan-callout {
+  display: grid;
+  gap: 3px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, #2563eb 28%, var(--line));
+  border-left: 4px solid #2563eb;
+  border-radius: 11px;
+  color: var(--ink);
+  background: color-mix(in srgb, #2563eb 7%, var(--card));
+  font-size: 13px;
+}
+
+.weekly-plan-card-rehab .weekly-plan-callout {
+  border-color: color-mix(in srgb, #f59e0b 35%, var(--line));
+  border-left-color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 8%, var(--card));
+}
+
+.weekly-plan-callout-warning {
+  border-color: color-mix(in srgb, #ef4444 38%, var(--line));
+  border-left-color: #ef4444;
+  background: color-mix(in srgb, #ef4444 8%, var(--card));
+}
+
+.weekly-plan-callout span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.weekly-plan-overview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.weekly-plan-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weekly-plan-summary-grid > div {
+  display: grid;
+  gap: 2px;
+}
+
+.weekly-plan-summary-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+}
+
+.weekly-plan-summary-grid strong {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-plan-progress {
+  display: flex;
+  width: 100%;
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.weekly-plan-progress > span {
+  height: 100%;
+  transition: width 220ms var(--ease-out);
+}
+
+.weekly-plan-progress-done {
+  background: #22c55e;
+}
+
+.weekly-plan-progress-planned {
+  background: #3b82f6;
+}
+
+.weekly-plan-card-rehab .weekly-plan-progress-planned {
+  background: #f59e0b;
+}
+
+.weekly-plan-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.weekly-plan-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weekly-plan-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.weekly-plan-legend .weekly-plan-legend-done {
+  background: #22c55e;
+  box-shadow: none;
+}
+
+.weekly-plan-legend .weekly-plan-legend-planned {
+  background: #3b82f6;
+  box-shadow: none;
+}
+
+.weekly-plan-card-rehab .weekly-plan-legend .weekly-plan-legend-planned {
+  background: #f59e0b;
 }
 
 .weekly-plan-grid {
@@ -669,6 +1224,21 @@
   background: #fff;
   display: grid;
   gap: 4px;
+}
+
+.weekly-plan-item-today {
+  outline: 2px solid var(--strava-orange);
+  outline-offset: 1px;
+}
+
+.weekly-plan-status-missed {
+  opacity: 0.68;
+  border-style: dashed;
+}
+
+.weekly-plan-status-done {
+  border-color: #b7e6ca;
+  box-shadow: inset 0 3px 0 #22c55e;
 }
 
 .weekly-plan-rest {
@@ -692,10 +1262,45 @@
 }
 
 .weekly-plan-day {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
   font-size: 11px;
   color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.weekly-plan-today-badge {
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: var(--strava-orange);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.weekly-plan-status-badge {
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.weekly-plan-status-badge-done {
+  background: #ecfdf3;
+  color: #11693f;
+}
+
+.weekly-plan-status-badge-missed {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.weekly-plan-status-badge-planned {
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .weekly-plan-item-title {
@@ -716,6 +1321,29 @@
   line-height: 1.35;
 }
 
+.weekly-plan-help {
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.weekly-plan-help summary {
+  width: fit-content;
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.weekly-plan-help p {
+  margin: 8px 0 0;
+  max-width: 78ch;
+}
+
+.weekly-plan-calculation .weekly-plan-notes {
+  margin-top: 8px;
+}
+
 .weekly-plan-notes {
   margin: 0;
   padding-left: 18px;
@@ -727,6 +1355,26 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+
+.weekly-plan-projection {
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-plan-projection-head {
+  display: grid;
+  gap: 2px;
+}
+
+.weekly-plan-projection-head strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.weekly-plan-projection-head span {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .weekly-plan-ramp-item {
@@ -997,21 +1645,21 @@
 }
 
 .badge-green {
-  background: rgba(34, 197, 94, 0.15);
-  color: #16a34a;
-  border-color: rgba(34, 197, 94, 0.4);
+  background: var(--tone-good-bg);
+  color: var(--tone-good-text);
+  border-color: var(--tone-good-border);
 }
 
 .badge-orange {
-  background: rgba(249, 115, 22, 0.15);
-  color: #ea580c;
-  border-color: rgba(249, 115, 22, 0.4);
+  background: var(--tone-warn-bg);
+  color: var(--tone-warn-text);
+  border-color: var(--tone-warn-border);
 }
 
 .badge-red {
-  background: rgba(239, 68, 68, 0.15);
-  color: #dc2626;
-  border-color: rgba(239, 68, 68, 0.4);
+  background: var(--tone-bad-bg);
+  color: var(--tone-bad-text);
+  border-color: var(--tone-bad-border);
 }
 
 .prediction-score {
@@ -1036,6 +1684,135 @@
   margin: 8px 0 12px;
   font-size: 12px;
   color: #6b7280;
+}
+
+.best-efforts-section {
+  margin: 16px 0;
+  padding-top: 14px;
+  border-top: 1px solid #eef0f2;
+}
+
+.best-efforts-section h3 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.best-efforts-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.best-effort-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  color: #374151;
+  background: #fafafa;
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.best-effort-item:hover {
+  border-color: var(--strava-orange);
+  transform: translateY(-1px);
+}
+
+.best-effort-item strong {
+  color: #111827;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.best-effort-item span,
+.best-effort-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.best-effort-item small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.best-effort-distance {
+  color: var(--strava-orange-dark);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.goal-race-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.goal-race-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  background: var(--card);
+}
+
+.goal-race-add {
+  width: 100%;
+}
+
+.goal-race-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.goal-race-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex: 1 1 160px;
+}
+
+.goal-race-summary {
+  margin-bottom: 12px;
+}
+
+.goal-race-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.goal-race-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.goal-race-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.goal-race-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .form-trend-card {
@@ -1125,27 +1902,27 @@
 }
 
 .form-pill-good {
-  color: #14532d;
-  background: #ecfdf3;
-  border: 1px solid #a7e3c5;
+  color: var(--tone-good-text);
+  background: var(--tone-good-bg);
+  border: 1px solid var(--tone-good-border);
 }
 
 .form-pill-warn {
-  color: #9a3412;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
+  color: var(--tone-warn-text);
+  background: var(--tone-warn-bg);
+  border: 1px solid var(--tone-warn-border);
 }
 
 .form-pill-bad {
-  color: #881337;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
+  color: var(--tone-bad-text);
+  background: var(--tone-bad-bg);
+  border: 1px solid var(--tone-bad-border);
 }
 
 .form-pill-neutral {
-  color: #374151;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  color: var(--tone-neutral-text);
+  background: var(--tone-neutral-bg);
+  border: 1px solid var(--tone-neutral-border);
 }
 
 .form-trend-grid {
@@ -1248,6 +2025,10 @@
 
   .form-trend-grid {
     grid-template-columns: 1fr;
+  }
+
+  .best-efforts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1472,13 +2253,243 @@
   font-size: 12px;
 }
 
+.shoe-eta {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.shoes-intro,
+.shoes-disclaimer,
+.athlete-settings-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shoes-list-detailed {
+  gap: 12px;
+}
+
+.shoes-list-detailed .shoe-item {
+  display: grid;
+  align-items: stretch;
+  justify-content: initial;
+  gap: 12px;
+  padding: 16px;
+  border-left-width: 4px;
+  background: var(--surface-soft);
+}
+
+.shoe-item-fresh { border-left-color: var(--tone-good-solid); }
+.shoe-item-normal { border-left-color: #3b82f6; } // mid-life "info" state, no equivalent in the good/warn/bad/neutral tone family
+.shoe-item-warning { border-left-color: var(--tone-warn-solid); }
+.shoe-item-critical { border-left-color: var(--tone-bad-solid); }
+
+.shoe-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.shoes-list-detailed .shoe-photo,
+.shoes-list-detailed .shoe-brand-logo {
+  width: 48px;
+  height: 48px;
+  font-size: 12px;
+}
+
+.shoe-health {
+  display: grid;
+  min-width: 130px;
+  justify-items: end;
+  text-align: right;
+}
+
+.shoe-health strong {
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.shoe-health span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.shoe-health-warning strong { color: var(--tone-warn-solid); }
+.shoe-health-critical strong { color: var(--tone-bad-solid); }
+
+.shoe-life-bar {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.shoe-life-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 300ms var(--ease-out);
+}
+
+.shoe-life-fill-fresh { background: var(--tone-good-solid); }
+.shoe-life-fill-normal { background: #3b82f6; }
+.shoe-life-fill-warning { background: var(--tone-warn-solid); }
+.shoe-life-fill-critical { background: var(--tone-bad-solid); }
+
+.shoe-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shoe-metrics-grid > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.shoe-metrics-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shoe-metrics-grid strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shoe-projection {
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--strava-orange) 8%, var(--card));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.shoe-editors {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.shoe-threshold-editor {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shoe-brand-editor label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shoe-brand-editor select {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--ink);
+  text-transform: none;
+  font-size: 13px;
+}
+
+.shoe-threshold-editor label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shoe-threshold-editor label span {
+  color: var(--ink);
+  text-transform: none;
+}
+
+.shoe-threshold-editor input {
+  width: 100px;
+}
+
+.shoe-checklist {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shoe-checklist summary {
+  width: fit-content;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.athlete-settings-card {
+  display: grid;
+  gap: 12px;
+}
+
+.athlete-calorie-profile {
+  display: grid;
+  gap: 8px;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.athlete-calorie-profile-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.athlete-calorie-profile-row label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.athlete-calorie-profile-row input {
+  width: 90px;
+}
+
 .panel input,
 .panel select {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
-  background: #fff;
+  color: var(--ink);
+  background: var(--input-bg);
 }
 
 .panel ul {
@@ -1494,6 +2505,14 @@
   .two-cols {
     grid-template-columns: 1fr;
   }
+
+  .dashboard-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shoe-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @include bp.mobile {
@@ -1504,6 +2523,14 @@
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .dashboard-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weekly-plan-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .brand-title {
@@ -1555,6 +2582,14 @@
     width: 100%;
     justify-items: start;
   }
+
+  .shoe-main-row {
+    align-items: flex-start;
+  }
+
+  .shoe-health {
+    min-width: 84px;
+  }
 }
 .access-shell {
   min-height: 100svh;
@@ -1573,6 +2608,10 @@
   border-radius: 18px;
   background: rgb(255 255 255 / 95%);
   box-shadow: 0 24px 60px rgb(17 24 39 / 12%);
+}
+
+.access-card .theme-toggle {
+  justify-self: end;
 }
 
 .access-brand {
@@ -1604,4 +2643,241 @@
   border-color: #9ca3af;
   background: #f9fafb;
   color: #111827;
+}
+
+:root[data-theme="dark"] {
+  .topbar,
+  .panel,
+  .access-card,
+  .goal-race-item,
+  .goal-race-form {
+    border-color: var(--line);
+    background: var(--card);
+  }
+
+  .brand-title,
+  .kpis-section-title,
+  .form-trend-title,
+  .weekly-plan-title,
+  .next-session-title,
+  .next-session-type,
+  .goal-race-name,
+  .shoe-name,
+  .prediction-reference,
+  .best-effort-item strong,
+  .form-trend-plot-title,
+  .form-trend-score-title {
+    color: var(--ink);
+  }
+
+  .kpi-tile,
+  .best-effort-item,
+  .training-rehab-summary > div,
+  .weekly-plan-item,
+  .form-trend-plot,
+  .card-error-fallback {
+    border-color: var(--line);
+    background: var(--surface-soft);
+  }
+
+  .training-load-card,
+  .next-session-card,
+  .next-session-export,
+  .weekly-plan-ramp-item,
+  .weekly-km-chart,
+  .form-trend-summary,
+  .form-trend-plot-card,
+  .shoe-item {
+    border-color: var(--line);
+    background: var(--surface-soft);
+  }
+
+  .weekly-plan-target,
+  .weekly-km-controls,
+  .weekly-plan-rest,
+  .weekly-plan-easy,
+  .weekly-plan-tempo,
+  .weekly-plan-interval,
+  .weekly-plan-long {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--surface-muted);
+  }
+
+  .training-value,
+  .training-text,
+  .training-reco,
+  .training-details > summary,
+  .next-session-plan,
+  .weekly-plan-item-title,
+  .weekly-plan-km,
+  .weekly-plan-ramp-km,
+  .weekly-km-title,
+  .form-grade-value,
+  .form-grade-score,
+  .form-summary-line,
+  .form-trend-plot-stats,
+  .shoe-km,
+  .shoe-brand-logo {
+    color: var(--ink);
+  }
+
+  .training-title,
+  .training-meta,
+  .training-rehab-summary span,
+  .next-session-why,
+  .next-session-export-hint,
+  .weekly-plan-day,
+  .weekly-plan-detail,
+  .weekly-plan-notes,
+  .weekly-plan-ramp-label,
+  .weekly-km-tab,
+  .weekly-km-sub,
+  .weekly-km-stats,
+  .weekly-km-label,
+  .prediction-score,
+  .prediction-reasons,
+  .prediction-hint,
+  .form-trend-sub,
+  .form-grade-label,
+  .form-trend-metrics,
+  .form-trend-plot-sub,
+  .form-trend-label,
+  .form-trend-empty,
+  .shoes-empty,
+  .shoe-sub {
+    color: var(--muted);
+  }
+
+  // .training-zone-*, .training-confidence-*, .form-pill-* and .badge-* are
+  // no longer listed here: they consume the --tone-* custom properties
+  // (styles/base.scss), which already carry their own dark-mode values.
+  .training-injury-mode,
+  .next-conf-medium,
+  .sport-run {
+    border-color: rgb(251 146 60 / 42%);
+    color: #ffad7a;
+    background: rgb(249 115 22 / 12%);
+  }
+
+  .next-conf-high,
+  .weekly-plan-status-badge-done,
+  .sport-bike {
+    border-color: rgb(74 222 128 / 36%);
+    color: #86efac;
+    background: rgb(34 197 94 / 12%);
+  }
+
+  .next-conf-low {
+    border-color: rgb(251 113 133 / 38%);
+    color: #fda4af;
+    background: rgb(244 63 94 / 12%);
+  }
+
+  .sport-ski,
+  .weekly-plan-status-badge-planned {
+    border-color: rgb(96 165 250 / 38%);
+    color: #93c5fd;
+    background: rgb(59 130 246 / 12%);
+  }
+
+  .sport-strength {
+    border-color: rgb(167 139 250 / 38%);
+    color: #c4b5fd;
+    background: rgb(139 92 246 / 12%);
+  }
+
+  .sport-walk,
+  .sport-hike,
+  .sport-other,
+  .weekly-plan-status-badge-missed {
+    border-color: var(--line);
+    color: var(--muted);
+    background: var(--surface-muted);
+  }
+
+  .sport-icon {
+    background: rgb(255 255 255 / 10%);
+  }
+
+  .activities-table thead th {
+    background: var(--surface-soft);
+  }
+
+  .activities-table tbody td {
+    border-bottom-color: var(--line);
+  }
+
+  .activities-table tbody tr:hover {
+    background: color-mix(in srgb, var(--strava-orange) 10%, var(--card));
+  }
+
+  .prediction-tile,
+  .weekly-km-tooltip {
+    border-color: #2c3747;
+    background: #0d131d;
+  }
+
+  .btn-secondary,
+  .shoes-sort-btn,
+  .theme-toggle {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--surface-soft);
+  }
+
+  .btn-secondary:hover,
+  .shoes-sort-btn:hover {
+    border-color: #4b5b70;
+    color: var(--ink);
+    background: var(--surface-muted);
+  }
+
+  .shoes-sort-btn-active,
+  .shoes-sort-btn-active:hover {
+    border-color: var(--strava-orange);
+    color: #fff;
+    background: var(--strava-orange-dark);
+  }
+
+  .training-switch,
+  .weekly-km-tab,
+  .weekly-km-range,
+  .shoe-brand-logo {
+    border-color: var(--line);
+    background: var(--surface-muted);
+  }
+
+  .form-trend-grid-line,
+  .weekly-km-grid-line {
+    stroke: #303b4b;
+  }
+
+  .weekly-km-point {
+    stroke: var(--surface-soft);
+  }
+
+  .skeleton-line,
+  .skeleton-block {
+    background: linear-gradient(90deg, #1b2431 25%, #273243 37%, #1b2431 63%);
+    background-size: 400% 100%;
+  }
+
+  .access-shell {
+    background:
+      radial-gradient(circle at top, rgb(252 76 2 / 18%) 0, transparent 42%),
+      var(--surface-page);
+  }
+
+  .access-card input {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--input-bg);
+  }
+
+  .chip {
+    border-color: rgb(252 76 2 / 38%);
+    color: #ff9b73;
+    background: rgb(252 76 2 / 12%);
+  }
 }

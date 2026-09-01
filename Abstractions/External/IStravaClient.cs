@@ -11,14 +11,21 @@ public interface IStravaClient
         string clientSecret,
         string code,
         CancellationToken cancellationToken = default);
+    Task<JsonDocument> RefreshTokenAsync(
+        string clientId,
+        string clientSecret,
+        string refreshToken,
+        CancellationToken cancellationToken = default);
     Task DeauthorizeAsync(string accessToken, CancellationToken cancellationToken = default);
     Task<AthleteProfile> FetchAthleteProfileAsync(
         string accessToken,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false);
     Task<List<Activity>> FetchActivitiesAsync(
         string accessToken,
         int? daysBack = 365,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false);
     Task<StravaStreams?> FetchActivityStreamsAsync(
         string accessToken,
         long activityId,

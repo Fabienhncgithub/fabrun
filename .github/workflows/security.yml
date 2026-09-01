@@ -40,7 +40,7 @@ jobs:
       - name: Verify published API contents
         run: |
           dotnet publish FabRun.Api.csproj --no-restore --configuration Release --output publish
-          test ! -e publish/Data/best-efforts.json
+          test -z "$(find publish/Data -maxdepth 1 -name '*.json' 2>/dev/null)"
           test ! -d publish/certs
           test ! -d publish/strava-front
           test ! -d publish/FabRun.Api.Tests
@@ -68,6 +68,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm test
 
       - name: Typecheck and build
         run: npm run build
@@ -118,7 +121,7 @@ jobs:
           test "$(docker image inspect deploy-api --format '{{.Config.User}}')" = "1654"
           test "$(docker image inspect deploy-web --format '{{.Config.User}}')" = "fabrun"
           docker run --rm --entrypoint sh deploy-api -c \
-            'test ! -e /app/Data/best-efforts.json && test ! -d /app/certs && test ! -d /app/strava-front'
+            'test -z "$(find /app/Data -maxdepth 1 -name "*.json" 2>/dev/null)" && test ! -d /app/certs && test ! -d /app/strava-front'
 
       - name: Validate Caddy configuration
         run: |
