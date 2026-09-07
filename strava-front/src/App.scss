@@ -532,10 +532,17 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  min-height: 44px;
   margin-bottom: 12px;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .training-mode-explainer {
@@ -553,10 +560,9 @@
   background: color-mix(in srgb, #f59e0b 9%, var(--card));
 }
 
-.training-pain-toggle input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.training-pain-toggle:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .training-switch {
@@ -581,17 +587,38 @@
   transition: transform 160ms ease;
 }
 
-.training-pain-toggle input:checked + .training-switch {
+.training-pain-toggle[aria-checked="true"] .training-switch {
   background: #ea580c;
 }
 
-.training-pain-toggle input:checked + .training-switch::after {
+.training-pain-toggle[aria-checked="true"] .training-switch::after {
   transform: translateX(18px);
 }
 
-.training-pain-toggle input:focus-visible + .training-switch {
+.training-pain-toggle:focus-visible .training-switch {
   outline: 3px solid rgb(249 115 22 / 30%);
   outline-offset: 2px;
+}
+
+.training-settings-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -5px 0 12px;
+  color: var(--tone-warn-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.training-settings-error button {
+  padding: 2px 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .training-zone {

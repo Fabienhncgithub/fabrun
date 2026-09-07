@@ -31,11 +31,13 @@ export default function TrainingLoadCard({
   hasShinPain,
   onShinPainChange,
   settingsSaving = false,
+  settingsError = null,
 }: {
   rows: Activity[];
   hasShinPain: boolean;
   onShinPainChange: (value: boolean) => void;
   settingsSaving?: boolean;
+  settingsError?: string | null;
 }) {
   const metrics = computeTrainingLoad(rows);
   const periostitis = metrics.periostitis;
@@ -46,18 +48,26 @@ export default function TrainingLoadCard({
 
   return (
     <section className="training-load-card">
-      <label className="training-pain-toggle">
+      <button
+        className="training-pain-toggle"
+        type="button"
+        role="switch"
+        aria-checked={hasShinPain}
+        disabled={settingsSaving}
+        onClick={() => onShinPainChange(!hasShinPain)}
+      >
         <span>Douleur périostite</span>
-        <input
-          type="checkbox"
-          role="switch"
-          checked={hasShinPain}
-          disabled={settingsSaving}
-          onChange={(event) => onShinPainChange(event.target.checked)}
-        />
         <span className="training-switch" aria-hidden="true" />
-        <strong>{hasShinPain ? "Oui" : "Non"}</strong>
-      </label>
+        <strong>{settingsSaving ? "Enregistrement…" : hasShinPain ? "Oui" : "Non"}</strong>
+      </button>
+      {settingsError && (
+        <div className="training-settings-error" role="status">
+          <span>{settingsError}</span>
+          <button type="button" disabled={settingsSaving} onClick={() => onShinPainChange(hasShinPain)}>
+            Réessayer
+          </button>
+        </div>
+      )}
       <p className={`training-mode-explainer ${hasShinPain ? "training-mode-explainer-active" : ""}`}>
         {hasShinPain
           ? "Mode actif : le conseil du jour et le plan hebdomadaire passent immédiatement en reprise prudente."

@@ -39,9 +39,17 @@ import { applyTheme, resolveInitialTheme, type Theme } from "./utils/theme";
 import "./App.scss";
 
 const API = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+const PENDING_SHIN_PAIN_KEY = "fabrun_pending_shin_pain";
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
+
+function readPendingShinPain(): boolean | null {
+  const stored = localStorage.getItem(PENDING_SHIN_PAIN_KEY);
+  if (stored === "true") return true;
+  if (stored === "false") return false;
+  return null;
+}
 
 function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
   const dark = theme === "dark";
@@ -85,7 +93,9 @@ export default function App() {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [athleteSettingsError, setAthleteSettingsError] = useState<string | null>(null);
-  const hasShinPain = athleteSettings?.hasShinPain ?? false;
+  const [pendingShinPain, setPendingShinPain] = useState<boolean | null>(readPendingShinPain);
+  const [shinPainSyncError, setShinPainSyncError] = useState<string | null>(null);
+  const hasShinPain = pendingShinPain ?? athleteSettings?.hasShinPain ?? false;
   const shoePreferences = athleteSettings?.shoePreferences ?? [];
   const ageYears = athleteSettings?.ageYears ?? null;
   const sex = athleteSettings?.sex ?? null;
@@ -135,15 +145,36 @@ export default function App() {
     }
   };
 
-  const updateShinPain = (value: boolean): Promise<boolean> => {
-    if (!athleteSettings) return Promise.resolve(false);
-    return saveSettings({
+  const updateShinPain = async (value: boolean): Promise<boolean> => {
+    // The safety advice must react immediately, even if the settings API is
+    // temporarily unavailable. This pending value is cleared as soon as the
+    // server confirms the change and otherwise remains as a local fallback.
+    localStorage.setItem(PENDING_SHIN_PAIN_KEY, String(value));
+    setPendingShinPain(value);
+    setShinPainSyncError(null);
+
+    if (!athleteSettings) {
+      setShinPainSyncError("Choix appliqué sur cet appareil. Réessaie lorsque les préférences seront disponibles.");
+      return false;
+    }
+
+    const saved = await saveSettings({
       hasShinPain: value,
       goalRaces: athleteSettings.goalRaces,
       shoePreferences,
       ageYears,
       sex,
     });
+
+    if (saved) {
+      localStorage.removeItem(PENDING_SHIN_PAIN_KEY);
+      setPendingShinPain(null);
+      setShinPainSyncError(null);
+    } else {
+      setShinPainSyncError("Choix appliqué sur cet appareil, mais la synchronisation avec le serveur a échoué.");
+    }
+
+    return saved;
   };
 
   const goalRaces = athleteSettings?.goalRaces ?? [];
@@ -513,7 +544,8 @@ export default function App() {
                         rows={rows}
                         hasShinPain={hasShinPain}
                         onShinPainChange={updateShinPain}
-                        settingsSaving={settingsSaving || athleteSettings == null}
+                        settingsSaving={settingsSaving}
+                        settingsError={shinPainSyncError}
                       />
                     )}
                   </CardErrorBoundary>
