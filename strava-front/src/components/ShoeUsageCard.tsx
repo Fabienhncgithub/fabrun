@@ -153,7 +153,8 @@ function ShoeThresholdEditor({
 }) {
   const [draft, setDraft] = useState(String(retirementKm));
   const parsed = Number(draft);
-  const changed = Number.isFinite(parsed) && parsed !== retirementKm;
+  const valid = draft.trim() !== "" && Number.isInteger(parsed) && parsed >= 300 && parsed <= 1500;
+  const changed = parsed !== retirementKm;
 
   return (
     <div className="shoe-threshold-editor">
@@ -166,6 +167,8 @@ function ShoeThresholdEditor({
             max="1500"
             step="25"
             value={draft}
+            disabled={saving}
+            aria-invalid={!valid}
             onChange={(event) => setDraft(event.target.value)}
           /> km
         </span>
@@ -173,11 +176,12 @@ function ShoeThresholdEditor({
       <button
         type="button"
         className="btn btn-secondary"
-        disabled={saving || !changed || parsed < 300 || parsed > 1500}
+        disabled={saving || !changed || !valid}
         onClick={() => onSave(gearId, parsed)}
       >
-        Appliquer
+        {saving ? "Enregistrement…" : "Appliquer"}
       </button>
+      {!valid && <p className="field-error">Saisis un nombre entier entre 300 et 1 500 km.</p>}
     </div>
   );
 }
@@ -194,11 +198,22 @@ export default function ShoeUsageCard({
   rows: Activity[];
   preferences: ShoePreference[];
   saving: boolean;
-  onRetirementKmChange: (gearId: string, retirementKm: number) => void;
+  onRetirementKmChange: (gearId: string, retirementKm: number) => Promise<boolean>;
   onBrandChange: (gearId: string, brand: string | null) => void;
 }) {
   const [sortMode, setSortMode] = useState<SortMode>("wear");
   const [nowMs] = useState(() => Date.now());
+  const [thresholdResult, setThresholdResult] = useState<{
+    gearId: string;
+    retirementKm: number;
+    saved: boolean;
+  } | null>(null);
+
+  const saveThreshold = async (gearId: string, retirementKm: number) => {
+    setThresholdResult(null);
+    const saved = await onRetirementKmChange(gearId, retirementKm);
+    setThresholdResult({ gearId, retirementKm, saved });
+  };
   const preferenceById = useMemo(
     () => new Map(preferences.map((preference) => [preference.gearId, preference.retirementKm])),
     [preferences]
@@ -357,7 +372,7 @@ export default function ShoeUsageCard({
                     gearId={shoe.id}
                     retirementKm={shoe.retirementKm}
                     saving={saving}
-                    onSave={onRetirementKmChange}
+                    onSave={saveThreshold}
                   />
                   <ShoeBrandEditor
                     key={`${shoe.id}-${shoe.brand}-brand`}
@@ -367,6 +382,14 @@ export default function ShoeUsageCard({
                     onSave={onBrandChange}
                   />
                 </div>
+              )}
+
+              {thresholdResult && thresholdResult.gearId === shoe.id && (
+                <p className={thresholdResult.saved ? "shoe-save-status" : "field-error"} role="status">
+                  {thresholdResult.saved
+                    ? `Seuil de ${thresholdResult.retirementKm} km enregistré.`
+                    : "Le seuil n’a pas été enregistré. Réessaie avec Appliquer."}
+                </p>
               )}
 
               <details className="shoe-checklist">

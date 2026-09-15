@@ -108,20 +108,22 @@ public class AthleteSettingsController : ControllerBase
         => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
 }
 
+// MVC validates positional records through their constructor parameters.
+// Property-targeted validation attributes make the entire PUT request fail.
 public sealed record GoalRaceRequest(
-    [property: StringLength(64)] string? Id,
-    [property: Required, StringLength(80, MinimumLength = 1)] string Label,
-    [property: Range(0.1, 500)] double DistanceKm,
+    [StringLength(64)] string? Id,
+    [Required, StringLength(80, MinimumLength = 1)] string Label,
+    [Range(0.1, 500)] double DistanceKm,
     DateOnly TargetDate);
 
 public sealed record UpdateAthleteSettingsRequest(
     bool HasShinPain,
-    [property: MaxLength(8)] List<GoalRaceRequest> GoalRaces,
-    [property: MaxLength(32)] List<ShoePreferenceRequest>? ShoePreferences,
-    [property: Range(10, 100)] int? AgeYears,
-    [property: StringLength(16)] string? Sex);
+    [MaxLength(8)] List<GoalRaceRequest> GoalRaces,
+    [MaxLength(32)] List<ShoePreferenceRequest>? ShoePreferences,
+    [Range(10, 100)] int? AgeYears,
+    [StringLength(16)] string? Sex);
 
 public sealed record ShoePreferenceRequest(
-    [property: Required, StringLength(128, MinimumLength = 1)] string GearId,
-    [property: Range(300, 1500)] double RetirementKm,
-    [property: StringLength(32)] string? Brand);
+    [Required, StringLength(128, MinimumLength = 1)] string GearId,
+    [Range(300, 1500)] double RetirementKm,
+    [StringLength(32)] string? Brand);
