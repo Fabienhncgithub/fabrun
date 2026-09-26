@@ -475,6 +475,19 @@ export default function App() {
           </section>
         ) : (
           <>
+            <nav className="dashboard-nav" aria-label="Accès rapide aux fonctions">
+              <a href="#plan-semaine"><span>01</span><strong>Semaine</strong><small>Km à faire, plan adaptatif</small></a>
+              <a href="#aujourdhui"><span>02</span><strong>Aujourd'hui</strong><small>Charge et douleur</small></a>
+              <a href="#recuperation">
+                <span>03</span>
+                <strong>Récupération</strong>
+                <small>{sleepSummary?.connected ? "Sommeil et forme" : "Forme"}</small>
+              </a>
+              <a href="#activites"><span>04</span><strong>Activités</strong><small>Recherche et export</small></a>
+              <a href="#objectifs"><span>05</span><strong>Objectifs</strong><small>Courses et temps</small></a>
+              <a href="#chaussures"><span>06</span><strong>Chaussures</strong><small>Usure par paire</small></a>
+            </nav>
+
             {rows && (
               <CardErrorBoundary title="Alerte charge d'entraînement">
                 <AcrAlertBanner rows={rows} />
@@ -507,19 +520,6 @@ export default function App() {
                 </section>
               </div>
             )}
-
-            <nav className="dashboard-nav" aria-label="Accès rapide aux fonctions">
-              <a href="#plan-semaine"><span>01</span><strong>Semaine</strong><small>Km à faire, plan adaptatif</small></a>
-              <a href="#aujourdhui"><span>02</span><strong>Aujourd'hui</strong><small>Charge et douleur</small></a>
-              <a href="#recuperation">
-                <span>03</span>
-                <strong>Récupération</strong>
-                <small>{sleepSummary?.connected ? "Sommeil et forme" : "Forme"}</small>
-              </a>
-              <a href="#activites"><span>04</span><strong>Activités</strong><small>Recherche et export</small></a>
-              <a href="#objectifs"><span>05</span><strong>Objectifs</strong><small>Courses et temps</small></a>
-              <a href="#chaussures"><span>06</span><strong>Chaussures</strong><small>Usure par paire</small></a>
-            </nav>
 
             {loading && !rows ? (
               <DashboardSkeleton />
