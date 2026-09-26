@@ -419,3 +419,27 @@ export function computeWeeklyRampHistory(
 
   return history;
 }
+
+export type WeekDayBreakdown = {
+  dateKey: string;
+  km: number;
+  runs: number;
+};
+
+export function computeWeekDailyBreakdown(rows: TrainingLoadActivity[], weekStartKey: string): WeekDayBreakdown[] {
+  const [y, m, d] = weekStartKey.split("-").map(Number);
+  const monday = new Date(y, m - 1, d);
+  const kmByDay = new Map<string, number>();
+  const runsByDay = new Map<string, number>();
+  for (const activity of rows) {
+    if (!RUN_TYPES.has(activity.sport_type)) continue;
+    const key = toDateKey(activity.start_date_local);
+    if (!key) continue;
+    kmByDay.set(key, (kmByDay.get(key) ?? 0) + activity.distance / 1000);
+    runsByDay.set(key, (runsByDay.get(key) ?? 0) + 1);
+  }
+  return Array.from({ length: 7 }, (_, i) => {
+    const dateKey = localDateKey(addDays(monday, i));
+    return { dateKey, km: round1(kmByDay.get(dateKey) ?? 0), runs: runsByDay.get(dateKey) ?? 0 };
+  });
+}

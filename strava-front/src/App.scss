@@ -3105,3 +3105,72 @@
     background: rgb(252 76 2 / 12%);
   }
 }
+
+.training-ramp-history-bar-wrap {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.training-ramp-history-bar-wrap:hover,
+.training-ramp-history-bar-wrap:focus-visible,
+.training-ramp-history-bar-wrap-selected {
+  outline: 2px solid var(--line);
+  outline-offset: 1px;
+}
+
+.training-week-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.training-week-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.training-week-detail-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.training-week-detail-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.training-week-detail-km {
+  font-weight: 700;
+}
+
+.training-week-detail-bar-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+
+.training-week-detail-bar {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.training-week-detail-label {
+  font-weight: 700;
+}

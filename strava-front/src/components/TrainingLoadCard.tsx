@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   computeNextAvailableRun,
   computeTrainingLoad,
+  computeWeekDailyBreakdown,
   computeWeeklyRampHistory,
   zoneFromWeeklyChangePct,
 } from "../utils/trainingLoad";
@@ -79,6 +80,13 @@ export default function TrainingLoadCard({
 
   const rampHistory = useMemo(() => computeWeeklyRampHistory(rows), [rows]);
   const maxWeekKm = Math.max(...rampHistory.map((w) => w.weekKm), 0.1);
+  const [selectedWeekKey, setSelectedWeekKey] = useState<string | null>(null);
+  const selectedWeek = rampHistory.find((w) => w.weekStartKey === selectedWeekKey) ?? null;
+  const selectedDays = useMemo(
+    () => (selectedWeek ? computeWeekDailyBreakdown(rows, selectedWeek.weekStartKey) : []),
+    [rows, selectedWeek]
+  );
+  const maxDayKm = Math.max(...selectedDays.map((day) => day.km), 0.1);
 
   return (
     <section className="training-load-card">
@@ -226,18 +234,24 @@ export default function TrainingLoadCard({
           <span className="training-title">Historique ({rampHistory.length} dernières semaines)</span>
           <div className="training-ramp-history-bars">
             {rampHistory.map((week) => (
-              <div
+              <button
                 key={week.weekStartKey}
-                className="training-ramp-history-bar-wrap"
+                type="button"
+                className={`training-ramp-history-bar-wrap ${
+                  week.weekStartKey === selectedWeekKey ? "training-ramp-history-bar-wrap-selected" : ""
+                }`}
+                aria-pressed={week.weekStartKey === selectedWeekKey}
+                aria-label={`Semaine du ${week.weekStartKey}: ${week.weekKm.toFixed(1)} km`}
                 title={`Semaine du ${week.weekStartKey}: ${week.weekKm.toFixed(1)} km${
                   week.changePct == null ? "" : ` (${week.changePct > 0 ? "+" : ""}${week.changePct.toFixed(1)}% vs semaine précédente)`
                 }`}
+                onClick={() => setSelectedWeekKey(week.weekStartKey === selectedWeekKey ? null : week.weekStartKey)}
               >
                 <span
                   className={`training-ramp-history-bar training-ramp-fill-${week.zone}`}
                   style={{ height: `${Math.max(6, Math.round((week.weekKm / maxWeekKm) * 100))}%` }}
                 />
-              </div>
+              </button>
             ))}
           </div>
           <div className="training-ramp-history-legend">
@@ -251,6 +265,37 @@ export default function TrainingLoadCard({
               <i className="training-ramp-fill-red" /> &gt;20%
             </span>
           </div>
+          {selectedWeek ? (
+            <div className="training-week-detail">
+              <div className="training-week-detail-head">
+                <strong>Semaine du {selectedWeek.weekStartKey}</strong>
+                <span>
+                  {selectedWeek.weekKm.toFixed(1)} km
+                  {selectedWeek.changePct != null &&
+                    ` (${selectedWeek.changePct > 0 ? "+" : ""}${selectedWeek.changePct.toFixed(1)}% vs semaine précédente: ${selectedWeek.previousWeekKm.toFixed(1)} km)`}
+                </span>
+              </div>
+              <div className="training-week-detail-days">
+                {selectedDays.map((day, index) => (
+                  <div key={day.dateKey} className="training-week-detail-day">
+                    <span className="training-week-detail-km">{day.km > 0 ? day.km.toFixed(1) : "—"}</span>
+                    <span className="training-week-detail-bar-track">
+                      <span
+                        className="training-week-detail-bar"
+                        style={{ height: `${day.km > 0 ? Math.max(6, Math.round((day.km / maxDayKm) * 100)) : 0}%` }}
+                      />
+                    </span>
+                    <span className="training-week-detail-label">
+                      {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"][index]}
+                    </span>
+                    <small>{day.dateKey.slice(8)}/{day.dateKey.slice(5, 7)}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="training-meta">Clique sur une semaine pour voir la répartition jour par jour.</p>
+          )}
         </div>
 
         <p className="training-meta">
