@@ -9,5 +9,6 @@ public class StravaActivityDetail
     public int moving_time { get; set; }
     public int elapsed_time { get; set; }
     public string start_date_local { get; set; } = "";
+    public double? calories { get; set; }
     public List<StravaSplit>? splits_standard { get; set; }
 }

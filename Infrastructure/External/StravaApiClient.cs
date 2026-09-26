@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FabRun.Api.Abstractions.External;
+using FabRun.Api.Abstractions.Persistence;
 using FabRun.Api.Models;
 using FabRun.Api.Services;
 using Microsoft.AspNetCore.WebUtilities;
@@ -12,15 +13,30 @@ namespace FabRun.Api.Infrastructure.External;
 
 public class StravaApiClient : IStravaClient
 {
+    // Strava's activity list endpoint never returns "calories" (only the
+    // per-activity detail endpoint does), so real calorie values - typically
+    // Garmin/Firstbeat-computed for devices that sync into Strava - have to
+    // be backfilled one detail call at a time. This caps how many detail
+    // calls a single FetchActivitiesAsync run makes so a large history
+    // backfills gradually across repeated dashboard loads instead of risking
+    // a 429 from Strava.
+    private const int MaxCalorieBackfillPerFetch = 10;
+
     private readonly HttpClient _http;
     private readonly ILogger<StravaApiClient> _logger;
     private readonly IMemoryCache _cache;
+    private readonly IActivityCaloriesRepository _caloriesRepository;
 
-    public StravaApiClient(HttpClient http, ILogger<StravaApiClient> logger, IMemoryCache cache)
+    public StravaApiClient(
+        HttpClient http,
+        ILogger<StravaApiClient> logger,
+        IMemoryCache cache,
+        IActivityCaloriesRepository caloriesRepository)
     {
         _http = http;
         _logger = logger;
         _cache = cache;
+        _caloriesRepository = caloriesRepository;
     }
 
     public string AuthorizeUrl(
@@ -227,8 +243,65 @@ public class StravaApiClient : IStravaClient
                 }
             }
 
-            return all;
+            return await BackfillCaloriesAsync(accessToken, all, cancellationToken);
         }) ?? new List<Activity>();
+    }
+
+    private async Task<List<Activity>> BackfillCaloriesAsync(
+        string accessToken,
+        List<Activity> activities,
+        CancellationToken cancellationToken)
+    {
+        var persisted = await _caloriesRepository.LoadAllAsync();
+        var byId = activities.ToDictionary(a => a.id);
+        var newlyFetched = new Dictionary<long, double>();
+        var remainingBudget = MaxCalorieBackfillPerFetch;
+
+        // Most recent first: when there's a large backlog, the activities
+        // that matter most for the current dashboard/weekly view get real
+        // calories filled in first.
+        var ordered = activities
+            .OrderByDescending(a => DateTime.TryParse(a.start_date_local, out var d) ? d : DateTime.MinValue)
+            .ToList();
+
+        foreach (var activity in ordered)
+        {
+            if (activity.calories is > 0) continue;
+
+            if (persisted.TryGetValue(activity.id, out var cached))
+            {
+                byId[activity.id] = activity with { calories = cached };
+                continue;
+            }
+
+            if (remainingBudget <= 0) continue;
+            remainingBudget--;
+
+            StravaActivityDetail? detail;
+            try
+            {
+                detail = await FetchActivityDetailAsync(accessToken, activity.id, cancellationToken);
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, "Failed to backfill calories for activity {ActivityId}.", activity.id);
+                continue;
+            }
+
+            var detailCalories = detail?.calories;
+            if (detailCalories is > 0)
+            {
+                byId[activity.id] = activity with { calories = detailCalories };
+                newlyFetched[activity.id] = detailCalories.Value;
+            }
+        }
+
+        if (newlyFetched.Count > 0)
+        {
+            await _caloriesRepository.SaveManyAsync(newlyFetched);
+        }
+
+        return activities.Select(a => byId[a.id]).ToList();
     }
 
     public async Task<StravaStreams?> FetchActivityStreamsAsync(

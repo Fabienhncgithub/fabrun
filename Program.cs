@@ -52,6 +52,7 @@ builder.Services
 builder.Services.AddSingleton<ISleepRepository, FileSleepRepository>();
 builder.Services.AddSingleton<IBestEffortsRepository, FileBestEffortsRepository>();
 builder.Services.AddSingleton<IAthleteSettingsRepository, FileAthleteSettingsRepository>();
+builder.Services.AddSingleton<IActivityCaloriesRepository, FileActivityCaloriesRepository>();
 builder.Services.AddSingleton<HealthSleepService>();
 builder.Services.AddSingleton<BestEffortsStoreService>();
 builder.Services.AddSingleton<BestEffortsService>();

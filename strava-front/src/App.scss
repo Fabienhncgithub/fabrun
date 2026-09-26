@@ -146,6 +146,25 @@
   font-size: 12px;
 }
 
+.glance-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--strava-orange) 30%, var(--line));
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--strava-orange) 5%, var(--surface-soft));
+}
+
+.glance-group-heading {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
 .dashboard-nav {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -518,6 +537,40 @@
   border: 1px solid #f1f2f4;
   background: linear-gradient(180deg, #ffffff 0%, #fdfdfd 100%);
   padding: 14px;
+}
+
+.training-go-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.training-go-badge-yes {
+  background: var(--tone-good-bg);
+  border: 1px solid var(--tone-good-border);
+  color: var(--tone-good-text);
+}
+
+.training-go-badge-no {
+  background: var(--tone-bad-bg);
+  border: 1px solid var(--tone-bad-border);
+  color: var(--tone-bad-text);
+}
+
+.training-next-available {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .training-load-head {
@@ -934,6 +987,144 @@
 .training-rehab-summary span {
   color: #7c5b45;
   font-size: 11px;
+}
+
+.training-ramp {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.training-ramp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.training-ramp-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.training-ramp-summary > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-soft);
+}
+
+.training-ramp-summary span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.training-ramp-summary strong {
+  color: var(--ink);
+}
+
+.training-ramp-progress {
+  height: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.training-ramp-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.training-ramp-fill-green { background: var(--tone-good-solid); }
+.training-ramp-fill-orange { background: var(--tone-warn-solid); }
+.training-ramp-fill-red { background: var(--tone-bad-solid); }
+.training-ramp-fill-insufficient_data { background: var(--tone-neutral-solid); }
+
+.training-ramp-simulator {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.training-ramp-simulator input[type="range"] {
+  width: 100%;
+  accent-color: var(--strava-orange);
+}
+
+.training-ramp-projection {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.training-ramp-history {
+  margin-top: 14px;
+}
+
+.training-ramp-history-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 56px;
+  margin-top: 8px;
+  padding: 4px 2px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.training-ramp-history-bar-wrap {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  height: 100%;
+}
+
+.training-ramp-history-bar {
+  display: block;
+  width: 100%;
+  min-height: 3px;
+  border-radius: 3px 3px 0 0;
+}
+
+.training-ramp-history-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.training-ramp-history-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.training-ramp-history-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+@include bp.mobile {
+  .training-ramp-summary {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .training-plan-link {

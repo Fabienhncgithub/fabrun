@@ -67,8 +67,21 @@ function zoneFromAcr(acr: number | null): "green" | "orange" | "red" | "insuffic
   return "red";
 }
 
-export function computeTrainingLoad(rows: TrainingLoadActivity[]) {
-  const today = new Date();
+// Classic "10% rule": week-over-week mileage jumps beyond +10% are the
+// folklore threshold most runners recognize for overuse injuries like
+// periostitis. Kept as its own always-visible signal (unlike the ACR-based
+// `zone` above) because it's the framing runners already know, and the
+// margins it implies (how many km of room are left before crossing +10%,
+// +20%) are easy to reason about without understanding acute:chronic load.
+export function zoneFromWeeklyChangePct(pct: number | null): "green" | "orange" | "red" | "insufficient_data" {
+  if (pct == null) return "insufficient_data";
+  if (pct <= 10) return "green";
+  if (pct <= 20) return "orange";
+  return "red";
+}
+
+export function computeTrainingLoad(rows: TrainingLoadActivity[], referenceDate: Date = new Date()) {
+  const today = referenceDate;
   const runKmByDay = new Map<string, number>();
 
   for (const activity of rows) {
@@ -123,12 +136,17 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[]) {
   const confidenceClass =
     confidence === "haute" ? "high" : confidence === "moyenne" ? "medium" : "low";
 
+  // Based on what's left to run today (cap minus what's already been run),
+  // not the day's total cap - otherwise this contradicts remainingNow/zone
+  // once a run has already happened today (e.g. "footing modéré" advice
+  // while remainingNow is already ~0).
+  const remainingTodayRaw = Math.max(0, finalAdjustedToday - todayMetrics.kmToday);
   const sessionAdvice =
-    finalAdjustedToday <= 0.5
+    remainingTodayRaw <= 0.5
       ? "Repos ou 20-30 min très facile"
-      : finalAdjustedToday <= 3
+      : remainingTodayRaw <= 3
       ? "Footing facile court"
-      : finalAdjustedToday <= 8
+      : remainingTodayRaw <= 8
       ? "Footing facile à modéré"
       : "Séance possible, rester en aisance";
 
@@ -149,6 +167,11 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[]) {
 
   const currentWeekKm = sumRunsBetween(currentMonday, today);
   const previousWeekKm = sumRunsBetween(previousMonday, previousSunday);
+
+  const weeklyChangePct = previousWeekKm > 0 ? ((currentWeekKm - previousWeekKm) / previousWeekKm) * 100 : null;
+  const weeklyRampCapKm = previousWeekKm > 0 ? previousWeekKm * 1.1 : null;
+  const weeklyRampRemainingKm = weeklyRampCapKm == null ? null : Math.max(0, weeklyRampCapKm - currentWeekKm);
+
   // When the previous week was a full break, restart from a deliberately small
   // fraction of the recent chronic load instead of jumping back to the old volume.
   const restartWeekKm = Math.min(5, Math.max(2, todayMetrics.chronic28Avg * 0.25));
@@ -195,6 +218,14 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[]) {
     activeDays28,
     variability: round2(variability),
     sessionAdvice,
+    weeklyRamp: {
+      currentWeekKm: round1(currentWeekKm),
+      previousWeekKm: round1(previousWeekKm),
+      changePct: weeklyChangePct == null ? null : round1(weeklyChangePct),
+      capKm: weeklyRampCapKm == null ? null : round1(weeklyRampCapKm),
+      remainingKm: weeklyRampRemainingKm == null ? null : round1(weeklyRampRemainingKm),
+      zone: zoneFromWeeklyChangePct(weeklyChangePct),
+    },
     periostitis: {
       remainingTodayKm: round1(periostitisRemainingTodayRaw),
       currentWeekKm: round1(currentWeekKm),
@@ -241,4 +272,150 @@ export function computeRedZoneStreak(rows: TrainingLoadActivity[], maxDays = 14)
     streak++;
   }
   return streak;
+}
+
+function buildRunKmByDay(rows: TrainingLoadActivity[]): Map<string, number> {
+  const runKmByDay = new Map<string, number>();
+  for (const activity of rows) {
+    if (!RUN_TYPES.has(activity.sport_type)) continue;
+    const key = toDateKey(activity.start_date_local);
+    if (!key) continue;
+    runKmByDay.set(key, (runKmByDay.get(key) ?? 0) + activity.distance / 1000);
+  }
+  return runKmByDay;
+}
+
+function mondayOf(date: Date): Date {
+  const dow = date.getDay();
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+  return addDays(date, -daysSinceMonday);
+}
+
+/**
+ * Same +10% week-over-week rule as `weeklyRamp` above, but replayed for each
+ * of the last `maxDays` days instead of just today. Used to decide whether
+ * the in-app alert banner should show: a single day over the cap (e.g. one
+ * big long run early in the week) is normal, staying over it for several
+ * days running is the actual signal worth surfacing.
+ */
+export function computeWeeklyRampRedStreak(rows: TrainingLoadActivity[], maxDays = 14): number {
+  const runKmByDay = buildRunKmByDay(rows);
+
+  const sumBetween = (start: Date, end: Date) => {
+    const startKey = localDateKey(start);
+    const endKey = localDateKey(end);
+    let total = 0;
+    for (const [key, km] of runKmByDay) {
+      if (key >= startKey && key <= endKey) total += km;
+    }
+    return total;
+  };
+
+  const zoneForDay = (day: Date) => {
+    const monday = mondayOf(day);
+    const previousMonday = addDays(monday, -7);
+    const previousSunday = addDays(monday, -1);
+    const weekToDateKm = sumBetween(monday, day);
+    const previousWeekKm = sumBetween(previousMonday, previousSunday);
+    const pct = previousWeekKm > 0 ? ((weekToDateKm - previousWeekKm) / previousWeekKm) * 100 : null;
+    return zoneFromWeeklyChangePct(pct);
+  };
+
+  const today = new Date();
+  let streak = 0;
+  for (let i = 0; i < maxDays; i++) {
+    if (zoneForDay(addDays(today, -i)) !== "red") break;
+    streak++;
+  }
+  return streak;
+}
+
+export type WeeklyRampHistoryWeek = {
+  weekStartKey: string;
+  weekKm: number;
+  previousWeekKm: number;
+  changePct: number | null;
+  zone: "green" | "orange" | "red" | "insufficient_data";
+};
+
+export type NextAvailableRun = {
+  daysAhead: number;
+  dateKey: string;
+  maxKm: number;
+  rehabMaxKm: number;
+};
+
+/**
+ * When today's budget is (near) zero, projects forward assuming pure rest
+ * (no runs added meanwhile) to find the first day the ACR-based cap - and,
+ * in parallel, the periostitis-rehab cap - opens back up. Reuses
+ * computeTrainingLoad's own math via `referenceDate` instead of
+ * duplicating it, so "when can I run again" always matches "how much can I
+ * run today" exactly. Returns null if still capped after `maxDaysAhead`.
+ */
+export function computeNextAvailableRun(
+  rows: TrainingLoadActivity[],
+  maxDaysAhead = 10
+): NextAvailableRun | null {
+  const today = new Date();
+  for (let i = 1; i <= maxDaysAhead; i++) {
+    const day = addDays(today, i);
+    const metrics = computeTrainingLoad(rows, day);
+    if (metrics.remainingNow >= 1 || metrics.periostitis.remainingTodayKm >= 1) {
+      return {
+        daysAhead: i,
+        dateKey: localDateKey(day),
+        maxKm: metrics.remainingNow,
+        rehabMaxKm: metrics.periostitis.remainingTodayKm,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Full week-over-week +10% history for the last `weeksBack` completed weeks
+ * plus the current (in-progress) one, oldest first, so the UI can show more
+ * than just today's snapshot - e.g. which past weeks actually crossed into
+ * risky territory.
+ */
+export function computeWeeklyRampHistory(
+  rows: TrainingLoadActivity[],
+  weeksBack = 10
+): WeeklyRampHistoryWeek[] {
+  const runKmByDay = buildRunKmByDay(rows);
+
+  const sumBetween = (start: Date, end: Date) => {
+    const startKey = localDateKey(start);
+    const endKey = localDateKey(end);
+    let total = 0;
+    for (const [key, km] of runKmByDay) {
+      if (key >= startKey && key <= endKey) total += km;
+    }
+    return total;
+  };
+
+  const currentMonday = mondayOf(new Date());
+  const history: WeeklyRampHistoryWeek[] = [];
+
+  for (let i = weeksBack; i >= 0; i--) {
+    const weekMonday = addDays(currentMonday, -7 * i);
+    const weekSunday = addDays(weekMonday, 6);
+    const previousMonday = addDays(weekMonday, -7);
+    const previousSunday = addDays(weekMonday, -1);
+
+    const weekKm = sumBetween(weekMonday, weekSunday);
+    const previousWeekKm = sumBetween(previousMonday, previousSunday);
+    const changePct = previousWeekKm > 0 ? ((weekKm - previousWeekKm) / previousWeekKm) * 100 : null;
+
+    history.push({
+      weekStartKey: localDateKey(weekMonday),
+      weekKm: round1(weekKm),
+      previousWeekKm: round1(previousWeekKm),
+      changePct: changePct == null ? null : round1(changePct),
+      zone: zoneFromWeeklyChangePct(changePct),
+    });
+  }
+
+  return history;
 }

@@ -28,6 +28,7 @@ import GoalRaceCard from "./components/GoalRaceCard";
 import WeeklyKmChartCard from "./components/WeeklyKmChartCard";
 import YearHeatmapCard from "./components/YearHeatmapCard";
 import AcrAlertBanner from "./components/AcrAlertBanner";
+import WeeklyRampAlertBanner from "./components/WeeklyRampAlertBanner";
 import NextSessionCard from "./components/NextSessionCard";
 import WeeklyTrainingPlanCard from "./components/WeeklyTrainingPlanCard";
 import WeeklyEnergyCard from "./components/WeeklyEnergyCard";
@@ -479,11 +480,42 @@ export default function App() {
                 <AcrAlertBanner rows={rows} />
               </CardErrorBoundary>
             )}
+            {rows && (
+              <CardErrorBoundary title="Alerte progression hebdomadaire">
+                <WeeklyRampAlertBanner rows={rows} />
+              </CardErrorBoundary>
+            )}
+
+            {rows && (
+              <div className="glance-group">
+                <div className="glance-group-heading">Où j'en suis, en un coup d'œil</div>
+                <section className="panel" id="aujourdhui">
+                  <CardErrorBoundary title="Charge d'entraînement">
+                    <TrainingLoadCard
+                      rows={rows}
+                      hasShinPain={hasShinPain}
+                      onShinPainChange={updateShinPain}
+                      settingsSaving={settingsSaving}
+                      settingsError={shinPainSyncError}
+                    />
+                  </CardErrorBoundary>
+                </section>
+                <section className="panel">
+                  <CardErrorBoundary title="Prochaine séance">
+                    <NextSessionCard rows={rows} predictions={predictions} hasShinPain={hasShinPain} />
+                  </CardErrorBoundary>
+                </section>
+              </div>
+            )}
 
             <nav className="dashboard-nav" aria-label="Accès rapide aux fonctions">
               <a href="#plan-semaine"><span>01</span><strong>Semaine</strong><small>Km à faire, plan adaptatif</small></a>
               <a href="#aujourdhui"><span>02</span><strong>Aujourd'hui</strong><small>Charge et douleur</small></a>
-              <a href="#recuperation"><span>03</span><strong>Récupération</strong><small>Sommeil et forme</small></a>
+              <a href="#recuperation">
+                <span>03</span>
+                <strong>Récupération</strong>
+                <small>{sleepSummary?.connected ? "Sommeil et forme" : "Forme"}</small>
+              </a>
               <a href="#activites"><span>04</span><strong>Activités</strong><small>Recherche et export</small></a>
               <a href="#objectifs"><span>05</span><strong>Objectifs</strong><small>Courses et temps</small></a>
               <a href="#chaussures"><span>06</span><strong>Chaussures</strong><small>Usure par paire</small></a>
@@ -506,15 +538,6 @@ export default function App() {
               </section>
             ) : (
               <>
-                {/* First thing shown: what to run, right now - the primary reason to open the app. */}
-                <section className="panel">
-                  <CardErrorBoundary title="Prochaine séance">
-                    {rows && (
-                      <NextSessionCard rows={rows} predictions={predictions} hasShinPain={hasShinPain} />
-                    )}
-                  </CardErrorBoundary>
-                </section>
-
                 <section className="panel" id="plan-semaine">
                   <CardErrorBoundary title="Plan de la semaine">
                     {rows && (
@@ -536,20 +559,6 @@ export default function App() {
                 <CardErrorBoundary title="Activité de l'année">
                   {(heatmapRows ?? rows) && <YearHeatmapCard rows={heatmapRows ?? rows ?? []} />}
                 </CardErrorBoundary>
-
-                <section className="panel" id="aujourdhui">
-                  <CardErrorBoundary title="Charge d'entraînement">
-                    {rows && (
-                      <TrainingLoadCard
-                        rows={rows}
-                        hasShinPain={hasShinPain}
-                        onShinPainChange={updateShinPain}
-                        settingsSaving={settingsSaving}
-                        settingsError={shinPainSyncError}
-                      />
-                    )}
-                  </CardErrorBoundary>
-                </section>
 
                 <section className="panel" id="recuperation">
                   <CardErrorBoundary title="Évolution de forme">
