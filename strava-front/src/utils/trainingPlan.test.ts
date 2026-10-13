@@ -29,4 +29,14 @@ describe("computeNormalWeekTarget", () => {
     expect(result.level).toBe("high");
     expect(result.targetKm).toBe(18);
   });
+  it("uses previous calendar week +10% as the normal reference when supplied", () => {
+    const result = computeNormalWeekTarget(25.2, 68, 14, 20.9);
+    expect(result.targetKm).toBe(23);
+    expect(result.level).toBe("high"); // high recent load changes intensity, not the weekly reference
+  });
+
+  it("restarts gently after a completed week without running", () => {
+    expect(computeNormalWeekTarget(0, 80, 8, 0).targetKm).toBe(5);
+  });
+
 });

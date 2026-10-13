@@ -57,13 +57,13 @@ public class StravaAnalyticsTests
         var activities = new[]
         {
             Activity(1, "Run", 5_000, 1_200, 50, averageHeartRate: 140),
-            Activity(2, "Run", 10_000, 2_400, 80, averageHeartRate: 155),
+            Activity(2, "Run", 10_000, 2_400, 80, averageHeartRate: 156),
             Activity(3, "Walk", 3_000, 3_600, 20, averageHeartRate: 100),
         };
 
         var kpis = StravaAnalytics.ComputeKpis(activities);
 
-        Assert.Equal(150, kpis.averageHeartRate);
+        Assert.Equal(150.7, kpis.averageHeartRate);
     }
 
     [Fact]

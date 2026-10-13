@@ -139,6 +139,7 @@ type DashboardResponse = {
   kpis: Kpis;
   kpisCurrentYear: Kpis;
   kpisPreviousYear: Kpis;
+  kpisTwoYearsAgo?: Kpis;
   profile: Profile;
   sleep: SleepSummary;
 };

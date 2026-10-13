@@ -52,7 +52,7 @@ public static class StravaAnalytics
         // year filter for the dashboard's per-year sections) or duplicated
         // against the frontend's own always-current-day computation in
         // strava-front/src/utils/trainingLoad.ts. That one is now the single
-        // source of truth for training load; KpisCard reads it directly.
+        // source of truth for training load, shared by the daily advice and weekly plan.
         static string F(double s)
         {
             if (s <= 0 || double.IsInfinity(s) || double.IsNaN(s)) return "-";
@@ -68,7 +68,7 @@ public static class StravaAnalytics
             Math.Round(totalKm, 1),
             F(avg),
             Math.Round(maxSpeedKmh, 1),
-            averageHeartRate is null ? null : Math.Round(averageHeartRate.Value),
+            averageHeartRate is null ? null : Math.Round(averageHeartRate.Value, 1),
             Math.Round(strengthTrainingHours, 1),
             Math.Round(longest, 1),
             Math.Round(totalElevationGain)

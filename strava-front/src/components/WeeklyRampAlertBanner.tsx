@@ -20,8 +20,8 @@ export default function WeeklyRampAlertBanner({ rows }: { rows: TrainingLoadActi
       </span>
       <div>
         <strong>Progression hebdomadaire au-delà de +20% depuis {streak} jours.</strong>{" "}
-        C'est bien au-delà de la règle des +10%/semaine : risque de blessure de surutilisation (périostite,
-        tendinopathies) nettement accru. Réduis le volume ou ajoute un jour de repos avant de continuer à monter.
+        Le volume dépasse le repère de progression choisi dans FabRun. Réduis la hausse et réévalue selon ta récupération
+        et tes douleurs ; ce seuil ne mesure pas ton risque individuel de blessure.
       </div>
     </div>
   );

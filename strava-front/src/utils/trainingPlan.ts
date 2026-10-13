@@ -17,7 +17,8 @@ const clamp = (value: number, min: number, max: number) =>
 export function computeNormalWeekTarget(
   km7: number,
   km28: number,
-  recentRunCount: number
+  recentRunCount: number,
+  previousWeekKm?: number
 ): NormalWeekTarget {
   const safeKm7 = Math.max(0, km7);
   const safeKm28 = Math.max(0, km28);
@@ -33,6 +34,16 @@ export function computeNormalWeekTarget(
       acr,
       level,
       targetKm: 0,
+    };
+  }
+
+  // In normal mode, the user-selected progression rule is calendar week +10%.
+  // ACR labels the recent load and changes intensity; it does not silently
+  // replace this weekly target with a different distance.
+  if (previousWeekKm !== undefined) {
+    return {
+      hasEnoughData: true, km7: safeKm7, chronicWeek, acr, level,
+      targetKm: previousWeekKm > 0 ? round1(previousWeekKm * 1.1) : round1(Math.min(5, chronicWeek)),
     };
   }
 

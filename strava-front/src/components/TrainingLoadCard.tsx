@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
+import "../styles/today.scss";
+import { buildNormalPlan, buildRehabPlan } from "../utils/weeklyPlan";
+import { addDays, localDateKey, toDateKey } from "../utils/dateBuckets";
 import {
-  computeNextAvailableRun,
   computeTrainingLoad,
   computeWeekDailyBreakdown,
   computeWeeklyRampHistory,
@@ -14,29 +16,27 @@ type Activity = {
   start_date_local: string;
 };
 
-const round3 = (value: number) => Math.round(value * 1000) / 1000;
+const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
+
 const round1 = (value: number) => Math.round(value * 10) / 10;
+
+const formatKm = (value: number) => value.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const formatPercent = (value: number) => `${value > 0 ? "+" : ""}${formatKm(value)} %`;
+const formatDate = (key: string, short = false) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: short ? "numeric" : "long" }).format(new Date(`${key}T12:00:00`));
 
 type TrainingZone = "green" | "orange" | "red" | "insufficient_data";
 
 function zoneLabel(zone: TrainingZone) {
-  if (zone === "green") return "Zone OK";
-  if (zone === "orange") return "Attention";
-  if (zone === "red") return "Risque élevé";
+  if (zone === "green") return "Charge stable";
+  if (zone === "orange") return "Charge en hausse";
+  if (zone === "red") return "Charge élevée";
   return "Données insuffisantes";
 }
 
-function zoneMessage(zone: TrainingZone) {
-  if (zone === "green") return "Progression raisonnable.";
-  if (zone === "orange") return "Charge en hausse: reste prudent aujourd'hui.";
-  if (zone === "red") return "Risque élevé: privilégie repos ou sortie très courte.";
-  return "Pas assez de données récentes pour une estimation fiable.";
-}
-
 function rampZoneLabel(zone: TrainingZone) {
-  if (zone === "green") return "Marge OK";
+  if (zone === "green") return "Sous le repère +10 %";
   if (zone === "orange") return "Progression rapide";
-  if (zone === "red") return "Hausse trop rapide";
+  if (zone === "red") return "Hausse supérieure à 20 %";
   return "Pas encore de semaine de référence";
 }
 
@@ -47,28 +47,38 @@ export default function TrainingLoadCard({
   onShinPainChange,
   settingsSaving = false,
   settingsError = null,
+  children,
 }: {
   rows: Activity[];
   hasShinPain: boolean;
   onShinPainChange: (value: boolean) => void;
   settingsSaving?: boolean;
   settingsError?: string | null;
+  children?: ReactNode;
 }) {
   const metrics = computeTrainingLoad(rows);
   const periostitis = metrics.periostitis;
   const weeklyRamp = metrics.weeklyRamp;
   const label = zoneLabel(metrics.zone);
-  const message = zoneMessage(metrics.zone);
-  const deltaRaw = round3(metrics.maxKmNowRaw - metrics.maxKmNowYesterdayRaw);
-  const deltaSign = deltaRaw > 0 ? "+" : "";
+  const painDescriptionId = useId();
+  const headingId = useId();
 
-  const budgetTodayKm = hasShinPain ? periostitis.remainingTodayKm : metrics.remainingNow;
-  const canRunToday = budgetTodayKm >= 0.5;
-  const nextAvailable = useMemo(
-    () => (canRunToday ? null : computeNextAvailableRun(rows, 10)),
-    [rows, canRunToday]
-  );
-  const nextAvailableKm = nextAvailable ? (hasShinPain ? nextAvailable.rehabMaxKm : nextAvailable.maxKm) : 0;
+  const today = new Date();
+  const todayKey = localDateKey(today);
+  const windowStartKey = localDateKey(addDays(today, -27));
+  const recentRunCount = rows.filter((activity) => {
+    if (!RUN_TYPES.has(activity.sport_type)) return false;
+    const key = toDateKey(activity.start_date_local);
+    return key != null && key >= windowStartKey && key <= todayKey;
+  }).length;
+  const hasEnoughRecentRuns = recentRunCount >= 3;
+
+  const selectedPlan = hasShinPain ? buildRehabPlan(rows, today) : buildNormalPlan(rows, today);
+  const todaySession = selectedPlan.sessions.find((session) => session.isToday);
+  const budgetTodayKm = todaySession?.status === "planned" && todaySession.type !== "rest" ? todaySession.km : 0;
+  const nextSession = selectedPlan.sessions.find((session) => session.status === "planned" && session.type !== "rest" && !session.isToday);
+  const overrunTodayKm = hasShinPain ? Math.max(0, metrics.kmToday - periostitis.sessionCapKm) : metrics.overrunToday;
+  const canRunToday = hasEnoughRecentRuns && budgetTodayKm >= 0.5;
 
   const [extraKm, setExtraKm] = useState(0);
   const projectedWeekKm = round1(weeklyRamp.currentWeekKm + extraKm);
@@ -89,18 +99,72 @@ export default function TrainingLoadCard({
   const maxDayKm = Math.max(...selectedDays.map((day) => day.km), 0.1);
 
   return (
-    <section className="training-load-card">
+    <section className="training-load-card training-today-card" aria-labelledby={headingId}>
+      <div className="training-today-heading">
+        <span className="training-today-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            {!hasEnoughRecentRuns ? <><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /></> : canRunToday ? <><path d="M5 12h14M13 6l6 6-6 6" /></> : <><path d="M9 7v10M15 7v10" /><circle cx="12" cy="12" r="10" /></>}
+          </svg>
+        </span>
+        <div>
+          <p className="training-today-eyebrow">Aujourd’hui</p>
+          <h2 id={headingId}>{!hasEnoughRecentRuns ? "Quelques sorties manquent" : canRunToday ? hasShinPain ? "Reprise très facile" : "Une séance est possible" : "Repos course"}</h2>
+        </div>
+      </div>
+
+      <div className="training-today-advice">
+        {!hasEnoughRecentRuns ? (
+          <>
+            <p className="training-text">Synchronise au moins trois sorties de course sur les 28 derniers jours pour obtenir un conseil adapté.</p>
+            <p className="training-today-alternative">{recentRunCount} sortie{recentRunCount > 1 ? "s" : ""} récente{recentRunCount > 1 ? "s" : ""} disponible{recentRunCount > 1 ? "s" : ""} sur 3 minimum.</p>
+          </>
+        ) : canRunToday ? (
+          <>
+            <div className="training-today-budget">
+              <strong>{formatKm(budgetTodayKm)} <span>km</span></strong>
+              <span>{hasShinPain ? "Limite conditionnelle de reprise" : "Distance prévue par le plan hebdomadaire"}</span>
+            </div>
+            {hasShinPain ? (
+              <p className="training-text">Course-marche sur terrain plat, sans vitesse ni côtes, uniquement si tu peux marcher 30 minutes sans douleur. Arrête si la douleur apparaît.</p>
+            ) : children ? children : (
+              <p className="training-text">Reste en aisance et adapte la distance à ton ressenti.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="training-text">
+              {hasShinPain && periostitis.ranYesterday
+                ? "Tu as couru hier : garde une journée sans course entre deux sorties."
+                : metrics.kmToday > 0
+                ? "Ta sortie est prise en compte. Pas de course supplémentaire conseillée aujourd’hui."
+                : hasShinPain ? "La charge récente limite la reprise aujourd’hui."
+                : metrics.normalRecoveryDay ? "Récupération après les sorties récentes. Le volume restant est réparti sur les autres séances."
+                : "Repos prévu au programme. Le volume de la semaine est réparti sur les prochaines séances."}
+            </p>
+            <p className="training-today-alternative">Marche indolore ou cardio sans impact très facile, selon ton ressenti.</p>
+          </>
+        )}
+      </div>
+
       <button
         className="training-pain-toggle"
         type="button"
         role="switch"
+        aria-label="Douleur au tibia"
+        aria-describedby={painDescriptionId}
         aria-checked={hasShinPain}
+        aria-busy={settingsSaving}
         disabled={settingsSaving}
         onClick={() => onShinPainChange(!hasShinPain)}
       >
-        <span>Douleur périostite</span>
+        <span className="training-pain-copy">
+          <span>Douleur au tibia</span>
+          <small id={painDescriptionId}>
+            {settingsSaving ? "Enregistrement…" : hasShinPain ? "Mode prudent actif · reprise seulement sans douleur" : "Active le mode prudent en cas de douleur"}
+          </small>
+        </span>
+        <strong>{hasShinPain ? "Oui" : "Non"}</strong>
         <span className="training-switch" aria-hidden="true" />
-        <strong>{settingsSaving ? "Enregistrement…" : hasShinPain ? "Oui" : "Non"}</strong>
       </button>
       {settingsError && (
         <div className="training-settings-error" role="status">
@@ -110,62 +174,16 @@ export default function TrainingLoadCard({
           </button>
         </div>
       )}
-      <p className={`training-mode-explainer ${hasShinPain ? "training-mode-explainer-active" : ""}`}>
-        {hasShinPain
-          ? "Mode actif : le conseil du jour et le plan hebdomadaire passent immédiatement en reprise prudente."
-          : "Active ce bouton si une douleur de périostite est présente : FabRun retirera vitesse, côtes et jours consécutifs."}
-      </p>
-
-      <div className={`training-go-badge training-go-badge-${canRunToday ? "yes" : "no"}`}>
-        {canRunToday ? "✅ Tu peux courir aujourd'hui" : "⛔ Pas de course aujourd'hui"}
-      </div>
-
-      <div className="training-load-head">
-        {hasShinPain && <span className="training-injury-mode">Reprise périostite</span>}
-        <span className={`training-zone training-zone-${metrics.zone}`}>{label}</span>
-        <span className="training-acr">ACR: {metrics.acr == null ? "—" : metrics.acr}</span>
-        <span className={`training-confidence training-confidence-${metrics.confidenceClass}`}>
-          Fiabilité: {metrics.confidence} ({metrics.confidenceScore}%)
-        </span>
-      </div>
-
-      <div className="training-main">
-        <div className="training-title">Km conseillés max pour le reste d'aujourd'hui</div>
-        <div className="training-value">{budgetTodayKm.toFixed(1)} km</div>
-      </div>
-
-      {!canRunToday && (
-        <p className="training-next-available">
-          {nextAvailable
-            ? `Prochaine sortie possible dans ${nextAvailable.daysAhead} jour${
-                nextAvailable.daysAhead > 1 ? "s" : ""
-              } (~${nextAvailableKm.toFixed(1)} km), en supposant un repos complet d'ici là.`
-            : "Toujours au-dessus du plafond dans 10 jours même en te reposant: laisse la charge redescendre avant de reprogrammer une sortie."}
-        </p>
+      {hasShinPain && !canRunToday && (
+        <p className="training-pain-condition">Avant toute reprise, vérifie que tu peux marcher 30 minutes sans douleur.</p>
       )}
+      <a className="training-plan-link" href="#plan-semaine">Voir le programme de la semaine <span aria-hidden="true">→</span></a>
 
-      <p className="training-text">
-        {hasShinPain && periostitis.ranYesterday
-          ? "Repos course aujourd'hui: au moins un jour sans impact entre deux sorties."
-          : !canRunToday
-          ? "Budget du jour déjà consommé: attends la prochaine ouverture indiquée ci-dessus avant de repartir courir."
-          : message}
-      </p>
-      <p className="training-reco">
-        Séance conseillée maintenant:{" "}
-        {hasShinPain
-          ? periostitis.remainingTodayKm <= 0
-            ? "repos, marche indolore ou cardio sans impact"
-            : "course-marche très facile, terrain plat, sans vitesse ni côtes"
-          : !canRunToday
-          ? "repos, marche ou cardio sans impact"
-          : metrics.sessionAdvice}
-        .
-      </p>
-
+      <details className="training-details">
+        <summary>Historique et simulateur</summary>
       <div className="training-ramp">
         <div className="training-ramp-head">
-          <span className="training-title">Marge avant hausse à risque (règle des +10%/semaine)</span>
+          <span className="training-title">Kilomètres par semaine</span>
           <span className={`training-zone training-zone-${weeklyRamp.zone}`}>{rampZoneLabel(weeklyRamp.zone)}</span>
         </div>
 
@@ -178,15 +196,15 @@ export default function TrainingLoadCard({
             <div className="training-ramp-summary">
               <div>
                 <span>Semaine dernière</span>
-                <strong>{weeklyRamp.previousWeekKm.toFixed(1)} km</strong>
+                <strong>{formatKm(weeklyRamp.previousWeekKm)} km</strong>
               </div>
               <div>
                 <span>Cette semaine</span>
-                <strong>{weeklyRamp.currentWeekKm.toFixed(1)} km</strong>
+                <strong>{formatKm(weeklyRamp.currentWeekKm)} km</strong>
               </div>
               <div>
-                <span>Plafond +10%</span>
-                <strong>{weeklyRamp.capKm.toFixed(1)} km</strong>
+                <span>Repère +10 %</span>
+                <strong>{formatKm(weeklyRamp.capKm)} km</strong>
               </div>
             </div>
 
@@ -197,18 +215,18 @@ export default function TrainingLoadCard({
               />
             </div>
             <div className="training-rehab-progress-labels">
-              <span>Reste avant +10%: {(weeklyRamp.remainingKm ?? 0).toFixed(1)} km</span>
+              <span>Écart au repère : {formatKm((weeklyRamp.remainingKm ?? 0))} km</span>
               <span>
                 {weeklyRamp.changePct == null
                   ? "—"
-                  : `${weeklyRamp.changePct > 0 ? "+" : ""}${weeklyRamp.changePct.toFixed(1)}%`}{" "}
-                vs semaine dernière
+                  : `${weeklyRamp.changePct > 0 ? "+" : ""}${formatKm(weeklyRamp.changePct)} %`}{" "}
+                par rapport à la semaine dernière
               </span>
             </div>
 
             <label className="training-ramp-simulator">
               <span>
-                Simuler: si je cours <strong>{extraKm.toFixed(1)} km</strong> de plus cette semaine →{" "}
+                Simuler <strong>{formatKm(extraKm)} km</strong> supplémentaires cette semaine
               </span>
               <input
                 type="range"
@@ -221,9 +239,9 @@ export default function TrainingLoadCard({
               />
             </label>
             <p className={`training-ramp-projection training-zone-${projectedZone}`}>
-              → {projectedWeekKm.toFixed(1)} km cette semaine
+              {formatKm(projectedWeekKm)} km cette semaine
               {projectedChangePct != null &&
-                ` (${projectedChangePct > 0 ? "+" : ""}${projectedChangePct.toFixed(1)}% vs semaine dernière)`}
+                ` (${formatPercent(projectedChangePct)} par rapport à la semaine dernière)`}
               {" — "}
               {rampZoneLabel(projectedZone)}
             </p>
@@ -231,7 +249,7 @@ export default function TrainingLoadCard({
         )}
 
         <div className="training-ramp-history">
-          <span className="training-title">Historique ({rampHistory.length} dernières semaines)</span>
+          <span className="training-title">Les {rampHistory.length} dernières semaines</span>
           <div className="training-ramp-history-bars">
             {rampHistory.map((week) => (
               <button
@@ -241,44 +259,45 @@ export default function TrainingLoadCard({
                   week.weekStartKey === selectedWeekKey ? "training-ramp-history-bar-wrap-selected" : ""
                 }`}
                 aria-pressed={week.weekStartKey === selectedWeekKey}
-                aria-label={`Semaine du ${week.weekStartKey}: ${week.weekKm.toFixed(1)} km`}
-                title={`Semaine du ${week.weekStartKey}: ${week.weekKm.toFixed(1)} km${
-                  week.changePct == null ? "" : ` (${week.changePct > 0 ? "+" : ""}${week.changePct.toFixed(1)}% vs semaine précédente)`
-                }`}
+                aria-label={`Semaine du ${formatDate(week.weekStartKey)} : ${formatKm(week.weekKm)} km, ${rampZoneLabel(week.zone)}`}
+                title={`Semaine du ${formatDate(week.weekStartKey)} : ${formatKm(week.weekKm)} km`}
                 onClick={() => setSelectedWeekKey(week.weekStartKey === selectedWeekKey ? null : week.weekStartKey)}
               >
-                <span
-                  className={`training-ramp-history-bar training-ramp-fill-${week.zone}`}
-                  style={{ height: `${Math.max(6, Math.round((week.weekKm / maxWeekKm) * 100))}%` }}
-                />
+                <span className="training-ramp-history-bar-track" aria-hidden="true">
+                  <span
+                    className={`training-ramp-history-bar training-ramp-fill-${week.zone}`}
+                    style={{ height: `${Math.max(6, Math.round((week.weekKm / maxWeekKm) * 100))}%` }}
+                  />
+                </span>
+                <small aria-hidden="true">{formatDate(week.weekStartKey, true)}</small>
               </button>
             ))}
           </div>
           <div className="training-ramp-history-legend">
             <span>
-              <i className="training-ramp-fill-green" /> ≤10%
+              <i className="training-ramp-fill-green" /> ≤ 10 %
             </span>
             <span>
-              <i className="training-ramp-fill-orange" /> 10–20%
+              <i className="training-ramp-fill-orange" /> 10–20 %
             </span>
             <span>
-              <i className="training-ramp-fill-red" /> &gt;20%
+              <i className="training-ramp-fill-red" /> &gt; 20 %
             </span>
           </div>
           {selectedWeek ? (
             <div className="training-week-detail">
               <div className="training-week-detail-head">
-                <strong>Semaine du {selectedWeek.weekStartKey}</strong>
+                <strong>Semaine du {formatDate(selectedWeek.weekStartKey)}</strong>
                 <span>
-                  {selectedWeek.weekKm.toFixed(1)} km
+                  {formatKm(selectedWeek.weekKm)} km
                   {selectedWeek.changePct != null &&
-                    ` (${selectedWeek.changePct > 0 ? "+" : ""}${selectedWeek.changePct.toFixed(1)}% vs semaine précédente: ${selectedWeek.previousWeekKm.toFixed(1)} km)`}
+                    ` (${formatPercent(selectedWeek.changePct)} par rapport à ${formatKm(selectedWeek.previousWeekKm)} km)`}
                 </span>
               </div>
               <div className="training-week-detail-days">
                 {selectedDays.map((day, index) => (
                   <div key={day.dateKey} className="training-week-detail-day">
-                    <span className="training-week-detail-km">{day.km > 0 ? day.km.toFixed(1) : "—"}</span>
+                    <span className="training-week-detail-km">{day.km > 0 ? formatKm(day.km) : "—"}</span>
                     <span className="training-week-detail-bar-track">
                       <span
                         className="training-week-detail-bar"
@@ -294,78 +313,44 @@ export default function TrainingLoadCard({
               </div>
             </div>
           ) : (
-            <p className="training-meta">Clique sur une semaine pour voir la répartition jour par jour.</p>
+            <p className="training-meta">Sélectionne une semaine pour voir les jours courus.</p>
           )}
         </div>
 
         <p className="training-meta">
-          Repère indicatif (pas une certitude médicale): +10%/semaine ou moins = marge raisonnable, +10 à +20% =
-          progression rapide à surveiller, plus de +20% = risque de blessure de surutilisation (dont périostite)
-          nettement accru.
+          Le repère +10 % compare des volumes hebdomadaires. Il ne garantit pas l’absence de blessure
+          et ne permet pas de décider si tu peux courir aujourd’hui. La semaine en cours est incomplète.
         </p>
       </div>
-
-      {hasShinPain && <><div className="training-rehab-summary">
-        <div>
-          <span>Cette semaine</span>
-          <strong>{periostitis.currentWeekKm.toFixed(1)} km</strong>
-        </div>
-        <div>
-          <span>Plafond semaine</span>
-          <strong>{periostitis.weeklyCapKm.toFixed(1)} km</strong>
-        </div>
-        <div>
-          <span>Reste semaine</span>
-          <strong>{periostitis.weekRemainingKm.toFixed(1)} km</strong>
-        </div>
-      </div>
-
-      <div className="training-rehab-progress" aria-label="Utilisation du plafond de reprise">
-        <span style={{ width: `${periostitis.weeklyCapKm > 0 ? Math.min(100, periostitis.currentWeekKm / periostitis.weeklyCapKm * 100) : 0}%` }} />
-      </div>
-      <div className="training-rehab-progress-labels">
-        <span>Couru {periostitis.currentWeekKm.toFixed(1)} km</span>
-        <span>Limite {periostitis.weeklyCapKm.toFixed(1)} km</span>
-      </div>
-
-      <a className="training-plan-link" href="#plan-semaine">
-        Voir comment le reste de la semaine et S+1 sont recalculés →
-      </a>
-      </>}
-
-      <p className="training-meta">
-        {hasShinPain
-          ? "Ne commence la reprise que si tu peux marcher 30 min sans douleur. Le plafond de +10 % n'est jamais un objectif obligatoire. Si la douleur augmente, devient vive ou persiste plus de 24–48 h: arrêt et retour à l'étape précédente."
-          : "Estimation dynamique (pas une certitude médicale). Si une douleur apparaît ou augmente: stoppe la séance et active le mode périostite."}
-        {metrics.overrunToday > 0
-          ? ` Tu as déjà dépassé de ${metrics.overrunToday.toFixed(1)} km, prudence renforcée demain.`
-          : ""}
-      </p>
+      </details>
 
       <details className="training-details">
-        <summary>Voir le détail du calcul</summary>
+        <summary>Comprendre le calcul</summary>
+        <dl className="training-calculation-grid">
+          <div><dt>Course sur 7 jours</dt><dd>{formatKm(metrics.acute7Km)} km</dd></div>
+          <div><dt>Moyenne sur 28 jours</dt><dd>{formatKm(metrics.chronic28AvgKm)} km/semaine</dd></div>
+          <div><dt>Ratio de charge (ACR)</dt><dd>{metrics.acr == null ? "—" : metrics.acr.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} · {label.toLowerCase()}</dd></div>
+          <div><dt>Course importée aujourd’hui</dt><dd>{formatKm(metrics.kmToday)} km</dd></div>
+        </dl>
         <p className="training-meta">
-          28 derniers jours (runs): Acute 7j {metrics.acute7Km} km, Chronic 28j {metrics.chronic28AvgKm} km/sem.
+          Les sorties de course, trail et course virtuelle alimentent le calcul. Sans douleur, le programme suit la référence hebdomadaire +10 % et répartit les kilomètres sur les séances disponibles.
+          {hasShinPain ? " Le mode prudent divise le volume de référence par deux, garde la limite de charge récente et espace les sorties." : " L’ACR adapte l’intensité ; il ne remplace pas la référence hebdomadaire."}
         </p>
         <p className="training-meta">
-          Déjà couru aujourd'hui: {metrics.kmToday.toFixed(1)} km. Hier: {metrics.kmYesterday.toFixed(1)} km.
-          Plafond ACR du jour: {metrics.maxKmNow.toFixed(1)} km.
-          {hasShinPain && ` Plafond reprise périostite restant: ${periostitis.remainingTodayKm.toFixed(1)} km. Semaine précédente: ${periostitis.previousWeekKm.toFixed(1)} km.`}
+          Données {metrics.confidence === "haute" ? "bien renseignées" : metrics.confidence === "moyenne" ? "partielles" : "limitées"} : {metrics.activeDays28} jours de course sur 28. Cet indice décrit les données du modèle, pas la sécurité médicale d’une séance.
         </p>
-        <p className="training-meta">
-          Ajustements: récup +{metrics.recoveryBoostPct.toFixed(1)}% ({metrics.restDaysBeforeToday} jour(s) repos),
-          fatigue -{metrics.fatiguePenaltyPct.toFixed(1)}%, report -{metrics.carryoverPenaltyPct.toFixed(1)}%.
-        </p>
-        <p className="training-meta">
-          Fiabilité: {metrics.confidence} ({metrics.confidenceScore}%) • jours actifs 28j: {metrics.activeDays28} •
-          variabilité: {metrics.variability}.
-        </p>
-        <p className="training-meta">
-          Brut ACR: aujourd'hui {metrics.maxKmNowRaw.toFixed(3)} km, ajusté {metrics.maxKmNowAdjustedRaw.toFixed(3)} km,
-          final {metrics.maxKmNowFinalRaw.toFixed(3)} km. Dépassement hier: {metrics.yesterdayOverrunKm.toFixed(1)} km.
-          Hier (brut): {metrics.maxKmNowYesterdayRaw.toFixed(3)} km (delta {deltaSign}
-          {deltaRaw.toFixed(3)} km).
-        </p>
+        {!canRunToday && hasEnoughRecentRuns && hasShinPain && (
+          <p className="training-meta">
+            {nextSession
+              ? `Prochaine séance du programme : le ${formatDate(localDateKey(nextSession.date))}, au plus ${formatKm(nextSession.km)} km, uniquement si la reprise est indolore.`
+              : "Aucune autre course proposée dans le programme de cette semaine. Le plan sera réévalué après récupération et synchronisation."}
+          </p>
+        )}
+        {hasEnoughRecentRuns && overrunTodayKm > 0 && (
+          <p className="training-meta">
+            La sortie importée aujourd’hui dépasse le repère journalier de {formatKm(overrunTodayKm)} km. Privilégie la récupération.
+          </p>
+        )}
       </details>
     </section>
   );

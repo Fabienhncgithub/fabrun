@@ -132,6 +132,10 @@ namespace FabRun.Api.Controllers
                     return parsed.Year == currentYear - 1;
                 });
                 var kpisPreviousYear = StravaAnalytics.ComputeKpis(previousYearActivities, "previous_year");
+                var twoYearsAgoActivities = allActivities.Where(a =>
+                    DateTime.TryParse(a.start_date_local, out var parsed)
+                    && parsed.Year == currentYear - 2);
+                var kpisTwoYearsAgo = StravaAnalytics.ComputeKpis(twoYearsAgoActivities, "two_years_ago");
                 var heatmapActivities = allActivities.Where(a =>
                 {
                     if (!DateTime.TryParse(a.start_date_local, out var parsed))
@@ -151,6 +155,7 @@ namespace FabRun.Api.Controllers
                     kpis,
                     kpisCurrentYear,
                     kpisPreviousYear,
+                    kpisTwoYearsAgo,
                     profile,
                     sleep = sleepSummary
                 });

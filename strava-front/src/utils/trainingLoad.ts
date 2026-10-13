@@ -1,4 +1,5 @@
 import { addDays, localDateKey, toDateKey } from "./dateBuckets";
+import { computeNormalWeekTarget } from "./trainingPlan";
 
 export type TrainingLoadActivity = {
   sport_type: string;
@@ -11,6 +12,7 @@ const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 const ACR_LIMIT = 1.3;
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
+const floor1 = (value: number) => Math.floor((value + 1e-9) * 10) / 10;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
@@ -136,20 +138,6 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[], referenceDate:
   const confidenceClass =
     confidence === "haute" ? "high" : confidence === "moyenne" ? "medium" : "low";
 
-  // Based on what's left to run today (cap minus what's already been run),
-  // not the day's total cap - otherwise this contradicts remainingNow/zone
-  // once a run has already happened today (e.g. "footing modéré" advice
-  // while remainingNow is already ~0).
-  const remainingTodayRaw = Math.max(0, finalAdjustedToday - todayMetrics.kmToday);
-  const sessionAdvice =
-    remainingTodayRaw <= 0.5
-      ? "Repos ou 20-30 min très facile"
-      : remainingTodayRaw <= 3
-      ? "Footing facile court"
-      : remainingTodayRaw <= 8
-      ? "Footing facile à modéré"
-      : "Séance possible, rester en aisance";
-
   const dayOfWeek = today.getDay();
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const currentMonday = addDays(today, -daysSinceMonday);
@@ -176,13 +164,16 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[], referenceDate:
   // fraction of the recent chronic load instead of jumping back to the old volume.
   const restartWeekKm = Math.min(5, Math.max(2, todayMetrics.chronic28Avg * 0.25));
   const periostitisBaseWeekKm = previousWeekKm > 0 ? previousWeekKm : restartWeekKm;
-  const periostitisWeeklyCapKm = periostitisBaseWeekKm * 1.1;
+  // Deliberately reduced return-to-running reference, not the normal +10%
+  // progression ceiling. All pain-mode proposals remain conditional on
+  // pain-free return; this percentage is not a diagnosis or clearance.
+  const periostitisWeeklyCapKm = floor1(periostitisBaseWeekKm * 0.5);
   const periostitisWeekRemainingKm = Math.max(0, periostitisWeeklyCapKm - currentWeekKm);
   const periostitisSessionCount = periostitisWeeklyCapKm < 6 ? 2 : 3;
   const periostitisSessionCapKm = Math.max(1, periostitisWeeklyCapKm / periostitisSessionCount);
   const ranYesterday = todayMetrics.kmYesterday > 0;
   const periostitisRemainingTodayRaw =
-    ranYesterday && todayMetrics.kmToday === 0
+    ranYesterday || todayMetrics.kmToday > 0
       ? 0
       : Math.max(
           0,
@@ -193,7 +184,26 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[], referenceDate:
           )
         );
 
+  const normalTarget = computeNormalWeekTarget(
+    todayMetrics.acute7, todayMetrics.chronic28Avg * 4, runCount28, previousWeekKm
+  );
+  const recentLongestKm = Math.max(...todayWindow, 0);
+  const normalSessionCapKm = Math.min(normalTarget.targetKm * 0.45, recentLongestKm * 1.1);
+  const normalRecoveryDay = ranYesterday && todayMetrics.fatiguePenaltyRatio >= 0.25;
+  const normalRemainingTodayRaw = !normalTarget.hasEnoughData || todayMetrics.kmToday > 0 || normalRecoveryDay
+    ? 0
+    : Math.max(0, Math.min(normalTarget.targetKm - currentWeekKm, normalSessionCapKm));
+  const sessionAdvice = normalRemainingTodayRaw < 0.5
+    ? "Repos, marche ou cardio sans impact"
+    : todayMetrics.acrRaw != null && todayMetrics.acrRaw > 1.3
+      ? "Endurance facile, sans séance intense"
+      : "Séance du plan hebdomadaire, rester en aisance";
+
   return {
+    normalWeekTargetKm: normalTarget.targetKm,
+    normalSessionCapKm: floor1(normalSessionCapKm),
+    normalRecoveryDay,
+    acrRemainingTodayKm: floor1(Math.max(0, finalAdjustedToday - todayMetrics.kmToday)),
     acute7Km: round1(todayMetrics.acute7),
     chronic28AvgKm: round1(todayMetrics.chronic28Avg),
     kmToday: round1(todayMetrics.kmToday),
@@ -206,8 +216,8 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[], referenceDate:
     acr: todayMetrics.acrRaw == null ? null : round2(todayMetrics.acrRaw),
     zone: zoneFromAcr(todayMetrics.acrRaw),
     maxKmNow: round1(finalAdjustedToday),
-    remainingNow: round1(Math.max(0, finalAdjustedToday - todayMetrics.kmToday)),
-    overrunToday: round1(Math.max(0, todayMetrics.kmToday - finalAdjustedToday)),
+    remainingNow: floor1(normalRemainingTodayRaw),
+    overrunToday: round1(Math.max(0, todayMetrics.kmToday - normalSessionCapKm)),
     maxKmNowRaw: round3(todayMetrics.maxKmNowRaw),
     maxKmNowAdjustedRaw: round3(todayMetrics.adjustedMaxKmNowRaw),
     maxKmNowFinalRaw: round3(finalAdjustedToday),
@@ -227,7 +237,7 @@ export function computeTrainingLoad(rows: TrainingLoadActivity[], referenceDate:
       zone: zoneFromWeeklyChangePct(weeklyChangePct),
     },
     periostitis: {
-      remainingTodayKm: round1(periostitisRemainingTodayRaw),
+      remainingTodayKm: floor1(periostitisRemainingTodayRaw),
       currentWeekKm: round1(currentWeekKm),
       previousWeekKm: round1(previousWeekKm),
       weeklyCapKm: round1(periostitisWeeklyCapKm),
@@ -347,21 +357,23 @@ export type NextAvailableRun = {
 
 /**
  * When today's budget is (near) zero, projects forward assuming pure rest
- * (no runs added meanwhile) to find the first day the ACR-based cap - and,
- * in parallel, the periostitis-rehab cap - opens back up. Reuses
+ * (no runs added meanwhile) to find the first day the selected mode's cap
+ * opens back up. Reuses
  * computeTrainingLoad's own math via `referenceDate` instead of
  * duplicating it, so "when can I run again" always matches "how much can I
  * run today" exactly. Returns null if still capped after `maxDaysAhead`.
  */
 export function computeNextAvailableRun(
   rows: TrainingLoadActivity[],
-  maxDaysAhead = 10
+  maxDaysAhead = 10,
+  hasShinPain = false,
+  referenceDate: Date = new Date()
 ): NextAvailableRun | null {
-  const today = new Date();
   for (let i = 1; i <= maxDaysAhead; i++) {
-    const day = addDays(today, i);
+    const day = addDays(referenceDate, i);
     const metrics = computeTrainingLoad(rows, day);
-    if (metrics.remainingNow >= 1 || metrics.periostitis.remainingTodayKm >= 1) {
+    const remainingKm = hasShinPain ? metrics.periostitis.remainingTodayKm : metrics.remainingNow;
+    if (remainingKm >= 0.5) {
       return {
         daysAhead: i,
         dateKey: localDateKey(day),
@@ -371,6 +383,65 @@ export function computeNextAvailableRun(
     }
   }
   return null;
+}
+
+export type ProjectedRehabRun = {
+  dateKey: string;
+  km: number;
+};
+
+/**
+ * Projects candidate dates in chronological order. Each accepted run is added
+ * to the load before the next date is evaluated, so the weekly plan follows
+ * the same daily caps and rest days as the advice shown for today.
+ * `maxSessions` counts additional sessions, excluding imported activities.
+ */
+export function projectRehabRuns(
+  rows: TrainingLoadActivity[],
+  dates: Date[],
+  targetKm: number,
+  maxSessions: number,
+  referenceDate: Date = new Date()
+): ProjectedRehabRun[] {
+  const todayKey = localDateKey(referenceDate);
+  const weekStart = mondayOf(referenceDate);
+  const startOfWeekKey = localDateKey(weekStart);
+  const endOfWeekKey = localDateKey(addDays(weekStart, 6));
+  const importedKmByDay = buildRunKmByDay(rows);
+  const importedWeekKm = Array.from(importedKmByDay)
+    .filter(([key]) => key >= startOfWeekKey && key <= endOfWeekKey)
+    .reduce((sum, [, km]) => sum + km, 0);
+  let remainingWeekKm = Math.max(0, targetKm - importedWeekKm);
+  const seenDates = new Set<string>();
+  const candidates = dates
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())
+    .filter((date) => {
+      const key = localDateKey(date);
+      if (key < todayKey || key > endOfWeekKey || seenDates.has(key)) return false;
+      seenDates.add(key);
+      return true;
+    });
+  const projectedRows = [...rows];
+  const sessions: ProjectedRehabRun[] = [];
+
+  for (const date of candidates) {
+    if (sessions.length >= Math.max(0, Math.floor(maxSessions))) break;
+    const metrics = computeTrainingLoad(projectedRows, date);
+    if ((importedKmByDay.get(localDateKey(date)) ?? 0) > 0 || metrics.periostitis.ranYesterday) continue;
+    const km = floor1(Math.min(metrics.periostitis.remainingTodayKm, remainingWeekKm));
+    if (km < 0.5) continue;
+    const dateKey = localDateKey(date);
+    sessions.push({ dateKey, km });
+    remainingWeekKm = Math.max(0, remainingWeekKm - km);
+    projectedRows.push({
+      sport_type: "Run",
+      distance: km * 1000,
+      start_date_local: `${dateKey}T08:00:00`,
+    });
+  }
+
+  return sessions;
 }
 
 /**

@@ -36,8 +36,11 @@ import CardErrorBoundary from "./components/CardErrorBoundary";
 import DashboardSkeleton from "./components/DashboardSkeleton";
 import AthleteProfileSettingsCard from "./components/AthleteProfileSettingsCard";
 import EmptyState from "./components/EmptyState";
+import DashboardNav from "./components/DashboardNav";
+import { dashboardPageFromHash, dashboardPages } from "./utils/dashboardNavigation";
 import { applyTheme, resolveInitialTheme, type Theme } from "./utils/theme";
 import "./App.scss";
+import "./styles/dashboard.scss";
 
 const API = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 const PENDING_SHIN_PAIN_KEY = "fabrun_pending_shin_pain";
@@ -69,6 +72,9 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
 }
 
 export default function App() {
+  const accountMenuRef = useRef<HTMLDetailsElement>(null);
+  const [activePage, setActivePage] = useState(() => dashboardPageFromHash(location.hash));
+  const page = dashboardPages.find((item) => item.id === activePage)!;
   const [theme, setTheme] = useState<Theme>(resolveInitialTheme);
   const initialLoadDoneRef = useRef(false);
   const [rows, setRows] = useState<Activity[] | null>(null);
@@ -76,6 +82,7 @@ export default function App() {
   const [kpisAllTime, setKpisAllTime] = useState<Kpis | null>(null);
   const [kpisCurrentYear, setKpisCurrentYear] = useState<Kpis | null>(null);
   const [kpisPreviousYear, setKpisPreviousYear] = useState<Kpis | null>(null);
+  const [kpisTwoYearsAgo, setKpisTwoYearsAgo] = useState<Kpis | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sleepSummary, setSleepSummary] = useState<SleepSummary | null>(null);
   const [predictions, setPredictions] = useState<PredictionResponse | null>(null);
@@ -105,6 +112,41 @@ export default function App() {
 
   useEffect(() => applyTheme(theme), [theme]);
 
+  useEffect(() => {
+    const closeMenu = (event: PointerEvent | KeyboardEvent) => {
+      const menu = accountMenuRef.current;
+      if (!menu?.open) return;
+      if (event instanceof KeyboardEvent && event.key === "Escape") {
+        menu.open = false;
+        menu.querySelector("summary")?.focus();
+      } else if (event instanceof PointerEvent && !menu.contains(event.target as Node)) {
+        menu.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeMenu);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeMenu);
+    };
+  }, []);
+
+  useEffect(() => {
+    const navigate = () => {
+      if (location.hash === "#dashboard-content") return;
+      setActivePage(dashboardPageFromHash(location.hash));
+      requestAnimationFrame(() => {
+        if (dashboardPages.some((item) => `#${item.id}` === location.hash)) {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        } else {
+          document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "start" });
+        }
+      });
+    };
+    window.addEventListener("hashchange", navigate);
+    return () => window.removeEventListener("hashchange", navigate);
+  }, []);
+
   const clearDashboardState = useCallback(() => {
     initialLoadDoneRef.current = false;
     setRows(null);
@@ -112,6 +154,7 @@ export default function App() {
     setKpisAllTime(null);
     setKpisCurrentYear(null);
     setKpisPreviousYear(null);
+    setKpisTwoYearsAgo(null);
     setProfile(null);
     setSleepSummary(null);
     setPredictions(null);
@@ -314,6 +357,7 @@ export default function App() {
       setKpisAllTime(data.kpis ?? null);
       setKpisCurrentYear(data.kpisCurrentYear ?? data.kpis ?? null);
       setKpisPreviousYear(data.kpisPreviousYear ?? null);
+      setKpisTwoYearsAgo(data.kpisTwoYearsAgo ?? null);
       setProfile(data.profile ?? null);
       setSleepSummary(data.sleep ?? null);
       setPredictionsLoading(true);
@@ -427,240 +471,137 @@ export default function App() {
     );
   }
 
+  const painModeKnown = athleteSettings !== null || pendingShinPain !== null;
+
   return (
-    <div className="app">
+    <div className="app dashboard-app">
+      <a className="skip-link" href="#dashboard-content">Aller au contenu</a>
       <header className="topbar">
         <div className="brand-block">
-          <div className="brand-title">FabRun</div>
-          <div className="brand-sub">Dashboard d'entraînement</div>
+          <a className="brand-title" href="#entrainement" aria-label="FabRun — accueil">Fab<span>Run</span><i aria-hidden="true" /></a>
+          <div className="brand-sub">Ton carnet d’entraînement</div>
         </div>
         <div className="topbar-actions">
-          <ThemeToggle theme={theme} onToggle={() => setTheme(theme === "dark" ? "light" : "dark")} />
-          {!stravaConnected ? (
-            <button className="btn" onClick={login}>
-              Se connecter avec Strava
-            </button>
-          ) : (
-            <>
-              <span className="chip">Strava connecté</span>
-              {lastUpdatedAt && (
-                <span className="topbar-last-sync" role="status">
-                  Synchro {lastUpdatedAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              )}
-              <button className="btn" onClick={() => loadAll(true)} disabled={loading}>
-                {loading ? "Chargement..." : "Rafraîchir"}
-              </button>
-            </>
+          {stravaConnected && lastUpdatedAt && (
+            <span className="topbar-last-sync" role="status">
+              <i aria-hidden="true" /> À jour à {lastUpdatedAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
           )}
-          <button className="btn btn-secondary" onClick={disconnectAccess} disabled={accessLoading}>
-            {accessLoading ? "Déconnexion…" : "Tout déconnecter"}
-          </button>
+          <ThemeToggle theme={theme} onToggle={() => setTheme(theme === "dark" ? "light" : "dark")} />
+          {stravaConnected && (
+            <button className="btn sync-button" type="button" aria-label={loading ? "Synchronisation en cours" : "Synchroniser les activités Strava"} onClick={() => loadAll(true)} disabled={loading}>
+              <span className={loading ? "sync-icon sync-icon-loading" : "sync-icon"} aria-hidden="true">↻</span>
+              <span className="sync-button-label">{loading ? "Synchronisation…" : "Synchroniser"}</span>
+            </button>
+          )}
+          <details className="account-menu" ref={accountMenuRef}>
+            <summary aria-label="Menu du compte">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="12" cy="8" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg>
+            </summary>
+            <div className="account-menu-panel">
+              <span>{stravaConnected ? "Strava connecté" : "Strava non connecté"}</span>
+              <button type="button" onClick={disconnectAccess} disabled={accessLoading}>
+                {accessLoading ? "Déconnexion…" : "Se déconnecter"}
+              </button>
+            </div>
+          </details>
         </div>
       </header>
 
-      <main className="main">
+      <main className="main" id="dashboard-content" tabIndex={-1}>
         {err && (
-          <div className="alert">
-            <div>Erreur: {err}</div>
+          <div className="alert dashboard-error" role="alert">
+            <div><strong>Actualisation impossible</strong><p>{rows ? "Tes dernières données restent affichées. Tu peux réessayer." : err}</p></div>
+            <button className="btn btn-secondary" type="button" onClick={() => loadAll(true)} disabled={loading}>Réessayer</button>
+            {rows && <details><summary>Détail de l’erreur</summary><p>{err}</p></details>}
           </div>
         )}
 
         {!stravaConnected ? (
-          <section className="panel">
-            <p>Connecte Strava pour charger tes activités.</p>
-            <button className="btn" onClick={login}>
-              Se connecter avec Strava
-            </button>
+          <section className="panel connect-panel">
+            <span className="dashboard-eyebrow">Bienvenue sur FabRun</span>
+            <h1>Ton entraînement commence ici.</h1>
+            <p>Connecte Strava pour retrouver tes sorties et un plan adapté à ton activité.</p>
+            <button className="btn" type="button" onClick={login}>Se connecter avec Strava</button>
           </section>
         ) : (
           <>
-            <nav className="dashboard-nav" aria-label="Accès rapide aux fonctions">
-              <a href="#plan-semaine"><span>01</span><strong>Semaine</strong><small>Km à faire, plan adaptatif</small></a>
-              <a href="#aujourdhui"><span>02</span><strong>Aujourd'hui</strong><small>Charge et douleur</small></a>
-              <a href="#recuperation">
-                <span>03</span>
-                <strong>Récupération</strong>
-                <small>{sleepSummary?.connected ? "Sommeil et forme" : "Forme"}</small>
-              </a>
-              <a href="#activites"><span>04</span><strong>Activités</strong><small>Recherche et export</small></a>
-              <a href="#objectifs"><span>05</span><strong>Objectifs</strong><small>Courses et temps</small></a>
-              <a href="#chaussures"><span>06</span><strong>Chaussures</strong><small>Usure par paire</small></a>
-            </nav>
-
-            {rows && (
-              <CardErrorBoundary title="Alerte charge d'entraînement">
-                <AcrAlertBanner rows={rows} />
-              </CardErrorBoundary>
-            )}
-            {rows && (
-              <CardErrorBoundary title="Alerte progression hebdomadaire">
-                <WeeklyRampAlertBanner rows={rows} />
-              </CardErrorBoundary>
-            )}
-
-            {rows && (
-              <div className="glance-group">
-                <div className="glance-group-heading">Où j'en suis, en un coup d'œil</div>
-                <section className="panel" id="aujourdhui">
-                  <CardErrorBoundary title="Charge d'entraînement">
-                    <TrainingLoadCard
-                      rows={rows}
-                      hasShinPain={hasShinPain}
-                      onShinPainChange={updateShinPain}
-                      settingsSaving={settingsSaving}
-                      settingsError={shinPainSyncError}
-                    />
-                  </CardErrorBoundary>
-                </section>
-                <section className="panel">
-                  <CardErrorBoundary title="Prochaine séance">
-                    <NextSessionCard rows={rows} predictions={predictions} hasShinPain={hasShinPain} />
-                  </CardErrorBoundary>
-                </section>
+            <DashboardNav activePage={activePage} />
+            <div className="dashboard-page-heading">
+              <div>
+                <span className="dashboard-eyebrow">{new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}</span>
+                <h1 id="dashboard-page-title">{page.title}</h1>
+                <p>{page.description}</p>
               </div>
-            )}
+              {activePage === "entrainement" && painModeKnown && hasShinPain && <span className="dashboard-mode"><i aria-hidden="true" />Mode prudent</span>}
+            </div>
 
             {loading && !rows ? (
-              <DashboardSkeleton />
+              <div role="status" aria-label="Chargement du tableau de bord"><DashboardSkeleton /></div>
             ) : !rows ? (
-              <section className="panel">
-                <EmptyState
-                  icon="↻"
-                  title="Dashboard indisponible"
-                  message="Les données n'ont pas pu être chargées. La connexion est conservée."
-                  action={
-                    <button className="btn" type="button" onClick={() => loadAll()}>
-                      Réessayer
-                    </button>
-                  }
-                />
-              </section>
+              <section className="panel"><EmptyState icon="↻" title="Données indisponibles" message="Tes activités n’ont pas pu être chargées. Ta connexion est conservée." action={<button className="btn" type="button" onClick={() => loadAll()}>Réessayer</button>} /></section>
             ) : (
               <>
-                <section className="panel" id="plan-semaine">
-                  <CardErrorBoundary title="Plan de la semaine">
-                    {rows && (
-                      <WeeklyTrainingPlanCard
-                        rows={rows}
-                        predictions={predictions}
-                        hasShinPain={hasShinPain}
-                      />
-                    )}
-                  </CardErrorBoundary>
-                </section>
+                <div className="dashboard-view training-view" id="entrainement" hidden={activePage !== "entrainement"} aria-labelledby="dashboard-page-title">
+                  <div className="training-alerts">
+                    <CardErrorBoundary title="Alerte charge d’entraînement"><AcrAlertBanner rows={rows} /></CardErrorBoundary>
+                    <CardErrorBoundary title="Alerte progression hebdomadaire"><WeeklyRampAlertBanner rows={rows} /></CardErrorBoundary>
+                  </div>
+                  {painModeKnown ? (
+                    <>
+                      <section className="panel today-panel" id="aujourdhui">
+                        <CardErrorBoundary title="Conseil du jour">
+                          <TrainingLoadCard rows={rows} hasShinPain={hasShinPain} onShinPainChange={updateShinPain} settingsSaving={settingsSaving} settingsError={shinPainSyncError}>
+                            {!hasShinPain && <NextSessionCard embedded rows={rows} predictions={predictions} hasShinPain={hasShinPain} />}
+                          </TrainingLoadCard>
+                        </CardErrorBoundary>
+                      </section>
+                      <section className="panel week-panel" id="plan-semaine">
+                        <CardErrorBoundary title="Plan de la semaine"><WeeklyTrainingPlanCard rows={rows} predictions={predictions} hasShinPain={hasShinPain} /></CardErrorBoundary>
+                      </section>
+                    </>
+                  ) : (
+                    <section className="panel">{settingsFallback}</section>
+                  )}
+                </div>
 
-                <section className="panel">
-                  <CardErrorBoundary title="Charge de course">
-                    {rows && <WeeklyKmChartCard rows={rows} />}
-                  </CardErrorBoundary>
-                </section>
+                <div className="dashboard-view" id="progression" hidden={activePage !== "progression"} aria-labelledby="dashboard-page-title">
+                  <section className="panel"><CardErrorBoundary title="Bilan d’activité">
+                    {kpisAllTime && kpisCurrentYear && kpisPreviousYear && <KpisCard allTime={kpisAllTime} currentYear={kpisCurrentYear} previousYear={kpisPreviousYear} twoYearsAgo={kpisTwoYearsAgo} />}
+                  </CardErrorBoundary></section>
+                  <section className="panel"><CardErrorBoundary title="Kilomètres de course"><WeeklyKmChartCard rows={rows} /></CardErrorBoundary></section>
+                  <CardErrorBoundary title="Activité de l’année"><YearHeatmapCard rows={heatmapRows ?? rows} /></CardErrorBoundary>
+                </div>
 
-                <CardErrorBoundary title="Activité de l'année">
-                  {(heatmapRows ?? rows) && <YearHeatmapCard rows={heatmapRows ?? rows ?? []} />}
-                </CardErrorBoundary>
+                <div className="dashboard-view" id="recuperation" hidden={activePage !== "recuperation"} aria-labelledby="dashboard-page-title">
+                  <section className="panel"><CardErrorBoundary title="Évolution de forme"><FormTrendCard rows={rows} sleep={sleepSummary} /></CardErrorBoundary></section>
+                  <section className="panel"><CardErrorBoundary title="Énergie et activité"><WeeklyEnergyCard rows={rows} athleteWeightKg={effectiveWeightKg} calorieProfile={calorieProfile} /></CardErrorBoundary></section>
+                  <details className="panel profile-settings"><summary>Ton profil de calcul</summary><CardErrorBoundary title="Profil de calcul">
+                    {athleteSettings ? <AthleteProfileSettingsCard key={`${ageYears ?? "none"}-${sex ?? "none"}`} ageYears={ageYears} sex={sex} saving={settingsSaving} onSaveCalorieProfile={updateCalorieProfile} /> : settingsFallback}
+                  </CardErrorBoundary></details>
+                </div>
 
-                <section className="panel" id="recuperation">
-                  <CardErrorBoundary title="Évolution de forme">
-                    {rows && <FormTrendCard rows={rows} sleep={sleepSummary} />}
-                  </CardErrorBoundary>
-                </section>
+                <div className="dashboard-view" id="activites" hidden={activePage !== "activites"} aria-labelledby="dashboard-page-title">
+                  <section className="panel"><CardErrorBoundary title="Activités"><ActivitiesTable rows={rows} athleteWeightKg={effectiveWeightKg} calorieProfile={calorieProfile} shoes={profile?.shoes ?? []} /></CardErrorBoundary></section>
+                </div>
 
-                <section className="panel">
-                  <CardErrorBoundary title="Énergie et activité">
-                    {rows && (
-                      <WeeklyEnergyCard rows={rows} athleteWeightKg={effectiveWeightKg} calorieProfile={calorieProfile} />
-                    )}
-                  </CardErrorBoundary>
-                </section>
+                <div className="dashboard-view" id="objectifs" hidden={activePage !== "objectifs"} aria-labelledby="dashboard-page-title">
+                  <section className="panel"><CardErrorBoundary title="Objectifs de course">
+                    {athleteSettings ? <GoalRaceCard goalRaces={athleteSettings.goalRaces} predictions={predictions} onAdd={addGoalRace} onUpdate={updateGoalRace} onDelete={deleteGoalRace} saving={settingsSaving} /> : settingsFallback}
+                  </CardErrorBoundary></section>
+                  <CardErrorBoundary title="Estimations de course"><PerformancePredictionsCard data={predictions} loading={predictionsLoading} onRefresh={async () => {
+                    try { setPredictionsLoading(true); setPredictions(await fetchRunningPredictions(true) ?? null); }
+                    catch (error: unknown) { handleRequestError(error); setErr(errorMessage(error, "Actualisation impossible.")); }
+                    finally { setPredictionsLoading(false); }
+                  }} /></CardErrorBoundary>
+                </div>
 
-                <section className="panel">
-                  <CardErrorBoundary title="Profil de calcul">
-                    {athleteSettings ? (
-                      <AthleteProfileSettingsCard
-                        key={`${ageYears ?? "none"}-${sex ?? "none"}`}
-                        ageYears={ageYears}
-                        sex={sex}
-                        saving={settingsSaving}
-                        onSaveCalorieProfile={updateCalorieProfile}
-                      />
-                    ) : settingsFallback}
-                  </CardErrorBoundary>
-                </section>
-
-                <section className="panel">
-                  <CardErrorBoundary title="KPIs">
-                    {kpisAllTime && kpisCurrentYear && kpisPreviousYear && (
-                      <KpisCard
-                        allTime={kpisAllTime}
-                        currentYear={kpisCurrentYear}
-                        previousYear={kpisPreviousYear}
-                        rows={rows ?? []}
-                      />
-                    )}
-                  </CardErrorBoundary>
-                </section>
-                <section className="panel" id="activites">
-                  <CardErrorBoundary title="Activités">
-                    {rows && (
-                      <ActivitiesTable
-                        rows={rows}
-                        athleteWeightKg={effectiveWeightKg}
-                        calorieProfile={calorieProfile}
-                        shoes={profile?.shoes ?? []}
-                      />
-                    )}
-                  </CardErrorBoundary>
-                </section>
-                <section className="panel" id="objectifs">
-                  <CardErrorBoundary title="Objectifs course">
-                    {athleteSettings ? (
-                      <GoalRaceCard
-                        goalRaces={athleteSettings.goalRaces}
-                        predictions={predictions}
-                        onAdd={addGoalRace}
-                        onUpdate={updateGoalRace}
-                        onDelete={deleteGoalRace}
-                        saving={settingsSaving}
-                      />
-                    ) : settingsFallback}
-                  </CardErrorBoundary>
-                </section>
-
-                {stravaConnected && (
-                  <CardErrorBoundary title="Estimations actuelles">
-                    <PerformancePredictionsCard
-                      data={predictions}
-                      loading={predictionsLoading}
-                      onRefresh={async () => {
-                        try {
-                          setPredictionsLoading(true);
-                          const p = await fetchRunningPredictions(true);
-                          setPredictions(p ?? null);
-                        } catch (error: unknown) {
-                          handleRequestError(error);
-                          setErr(errorMessage(error, "Actualisation impossible."));
-                        } finally {
-                          setPredictionsLoading(false);
-                        }
-                      }}
-                    />
-                  </CardErrorBoundary>
-                )}
-                <section className="panel" id="chaussures">
-                  <CardErrorBoundary title="Gears">
-                    <ShoeUsageCard
-                      shoes={profile?.shoes ?? []}
-                      rows={rows ?? []}
-                      preferences={shoePreferences}
-                      saving={settingsSaving || athleteSettings == null}
-                      onRetirementKmChange={updateShoeRetirement}
-                      onBrandChange={updateShoeBrand}
-                    />
-                  </CardErrorBoundary>
-                </section>
+                <div className="dashboard-view" id="equipement" hidden={activePage !== "equipement"} aria-labelledby="dashboard-page-title">
+                  <section className="panel" id="chaussures"><CardErrorBoundary title="Chaussures"><ShoeUsageCard shoes={profile?.shoes ?? []} rows={rows} preferences={shoePreferences} saving={settingsSaving || athleteSettings == null} onRetirementKmChange={updateShoeRetirement} onBrandChange={updateShoeBrand} /></CardErrorBoundary></section>
+                </div>
               </>
             )}
+            <footer className="dashboard-footer"><span>FabRun · ton carnet d’entraînement</span><span>Les estimations restent des repères, adaptés à ton ressenti.</span></footer>
           </>
         )}
       </main>

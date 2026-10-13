@@ -1,0 +1,198 @@
+@use "./breakpoints" as bp;
+
+.dashboard-app {
+  gap: 24px;
+  --shadow-card: 0 4px 20px rgb(17 24 39 / 3%);
+
+  .topbar {
+    position: relative;
+    top: auto;
+    padding: 4px 0 20px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .brand-title {
+    display: inline-flex;
+    align-items: center;
+    font-family: inherit;
+    font-size: 30px;
+    font-weight: 820;
+    letter-spacing: -1.4px;
+    line-height: 1.2;
+    text-transform: none;
+    text-decoration: none;
+    color: var(--ink);
+
+    span { color: var(--strava-orange); }
+    i { width: 7px; height: 7px; border-radius: 50%; background: var(--strava-orange); margin: 9px 0 0 5px; }
+  }
+
+  .brand-sub { text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .topbar-actions { gap: 8px; }
+  .topbar-last-sync { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; font-size: 12px; color: var(--muted); }
+  .topbar-last-sync i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone-good-solid); }
+  .theme-toggle { min-height: 44px; border-radius: 11px; background: var(--card); font-weight: 600; }
+  .btn { min-height: 44px; padding: 10px 16px; border-radius: 11px; font-size: 13px; font-weight: 650; }
+  .btn-secondary { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .sync-button { display: flex; align-items: center; justify-content: center; gap: 7px; }
+  .sync-icon { font-size: 21px; line-height: 1; }
+  .sync-icon-loading { animation: sync-turn 1.2s linear infinite; }
+  .main { gap: 20px; }
+  .panel { padding: 24px; border-radius: 18px; box-shadow: var(--shadow-card); min-width: 0; }
+  .panel[id], .dashboard-view[id], #dashboard-page-title { scroll-margin-top: 88px; }
+  .dashboard-view { display: grid; gap: 20px; min-width: 0; }
+  .dashboard-view[hidden] { display: none !important; }
+  .training-alerts { display: grid; gap: 8px; }
+  .training-alerts:empty { display: none; }
+  .today-panel { padding: 0; overflow: clip; }
+  .week-panel { padding: 24px; }
+
+  .dashboard-nav-v2 {
+    display: flex;
+    position: sticky;
+    top: 8px;
+    z-index: 25;
+    gap: 5px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 8px rgb(17 24 39 / 3%);
+
+    a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 8px;
+      min-height: 46px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+    }
+    a:hover { color: var(--ink); background: var(--surface-muted); }
+    a[aria-current="page"] { background: var(--ink); color: var(--card); }
+    a:focus-visible { outline-offset: -2px; }
+    svg { flex-shrink: 0; }
+  }
+
+  .dashboard-page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 9px 2px 0;
+    h1 { font-size: clamp(26px, 3.5vw, 34px); font-weight: 760; line-height: 1.2; letter-spacing: -1px; margin: 7px 0 8px; }
+    p { color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 64ch; margin: 0; }
+  }
+  .dashboard-eyebrow { color: var(--muted); font-size: 12px; font-weight: 550; text-transform: capitalize; }
+  .dashboard-mode { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; color: var(--tone-warn-text); background: var(--tone-warn-bg); border: 1px solid var(--tone-warn-border); border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 600; }
+  .dashboard-mode i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone-warn-solid); }
+
+  .account-menu {
+    position: relative;
+    > summary { display: grid; place-items: center; width: 44px; height: 44px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 11px; cursor: pointer; }
+    > summary::-webkit-details-marker { display: none; }
+    &[open] > summary { border-color: var(--strava-orange); }
+  }
+  .account-menu-panel { position: absolute; z-index: 30; top: 52px; right: 0; display: grid; gap: 8px; min-width: 210px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--card); box-shadow: var(--shadow-card); }
+  .account-menu-panel span { padding: 4px; font-size: 12px; color: var(--muted); }
+  .account-menu-panel button { min-height: 44px; border: 0; border-radius: 8px; background: var(--surface-soft); text-align: left; padding: 10px; font-size: 13px; }
+  .account-menu-panel button:hover { background: var(--surface-muted); }
+
+  .profile-settings > summary { cursor: pointer; font-size: 14px; font-weight: 650; min-height: 24px; }
+  .profile-settings[open] > summary { margin-bottom: 20px; }
+  .dashboard-footer { display: flex; justify-content: space-between; gap: 12px; padding: 4px 2px 12px; color: var(--muted); font-size: 11px; }
+  .dashboard-error { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+  .dashboard-error > div { flex: 1; }
+  .dashboard-error p { font-size: 13px; font-weight: 400; margin: 3px 0 0; }
+  .dashboard-error details { width: 100%; font-size: 12px; }
+  .dashboard-error summary { cursor: pointer; }
+  .connect-panel { padding: 40px; }
+  .connect-panel h1 { margin: 8px 0; font-size: 32px; letter-spacing: -0.8px; }
+  .connect-panel p { max-width: 54ch; color: var(--muted); }
+
+  // Consistent type hierarchy on existing cards; colors stay driven by the shared tokens.
+  :is(.form-trend-title, .weekly-km-title, .shoes-title, .goal-race-title, .predictions-title, .year-heatmap-title, .activities-title) {
+    font-family: inherit;
+    font-size: 20px;
+    line-height: 1.35;
+    text-transform: none;
+    letter-spacing: -0.3px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  :is(.form-trend-sub, .weekly-km-sub, .shoe-sub, .prediction-hint) { line-height: 1.6; }
+  summary { text-transform: none; letter-spacing: 0; }
+  .table-wrap { max-width: 100%; }
+}
+
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  z-index: 100;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--card);
+  transform: translateY(-180%);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+.skip-link:focus { transform: translateY(0); }
+
+@keyframes sync-turn { to { transform: rotate(360deg); } }
+
+@include bp.dashboard-compact {
+  .dashboard-app .dashboard-nav-v2 { overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: 6px; }
+  .dashboard-app .dashboard-nav-v2 a { flex: 0 0 auto; padding-inline: 14px; }
+}
+
+@include bp.mobile {
+  .dashboard-app {
+    gap: 16px;
+    .topbar { flex-direction: row; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 16px; }
+    .brand-title { font-size: 27px; }
+    .brand-sub { font-size: 11px; }
+    .topbar-actions { gap: 6px; }
+    .topbar-last-sync { display: none; }
+    .theme-toggle { width: 44px; padding: 0; }
+    .theme-toggle > span:last-child { display: none; }
+    .sync-button { min-height: 44px; padding: 10px 12px; }
+    .sync-button { width: 44px; padding: 0; }
+    .sync-button-label { display: none; }
+    .dashboard-page-heading { flex-wrap: wrap; gap: 12px; padding-top: 2px; }
+    .dashboard-page-heading h1 { margin-top: 5px; }
+    .dashboard-page-heading p { font-size: 13px; }
+    .dashboard-mode { padding: 5px 10px; }
+    .panel, .week-panel { padding: 18px; border-radius: 15px; }
+    .today-panel { padding: 0; }
+    .main, .dashboard-view { gap: 16px; }
+    .dashboard-nav-v2 { top: 5px; border-radius: 12px; padding: 4px; margin-inline: -2px; }
+    .dashboard-nav-v2 a { min-height: 44px; gap: 6px; padding-inline: 12px; font-size: 12px; }
+    .dashboard-footer { flex-direction: column; gap: 4px; font-size: 10px; }
+    .connect-panel h1 { font-size: 27px; }
+  }
+}
+
+@media (min-width: 981px) {
+  .dashboard-app .training-view {
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+    align-items: start;
+  }
+  .dashboard-app .training-alerts,
+  .dashboard-app .training-view > .panel:only-child { grid-column: 1 / -1; }
+}

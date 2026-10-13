@@ -1,0 +1,440 @@
+.training-load-card.training-today-card {
+  padding: clamp(18px, 2.5vw, 28px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--ink);
+
+  .training-today-heading {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .training-today-icon {
+    display: grid;
+    flex: 0 0 46px;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    color: var(--ink);
+    background: var(--surface-soft);
+  }
+
+  .training-today-eyebrow {
+    margin: 0 0 3px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .training-today-heading h2 {
+    margin: 0;
+    font-size: clamp(23px, 2.8vw, 29px);
+    line-height: 1.2;
+    font-weight: 750;
+    letter-spacing: -0.035em;
+  }
+
+  .training-today-advice {
+    margin-top: 18px;
+  }
+
+  .training-text {
+    margin: 0;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.65;
+    font-weight: 500;
+  }
+
+  .training-today-alternative {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .training-today-budget {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 16px;
+
+    > strong {
+      font-size: clamp(32px, 4vw, 40px);
+      font-weight: 750;
+      line-height: 1.15;
+      letter-spacing: -0.045em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    > strong span {
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: normal;
+    }
+
+    > span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+  }
+
+  .training-pain-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 66px;
+    gap: 12px;
+    margin: 22px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+    text-align: left;
+    font-size: 13px;
+
+    .training-pain-copy {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+      gap: 3px;
+      line-height: 1.4;
+    }
+
+    .training-pain-copy > span {
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 450;
+    }
+
+    > strong {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .training-switch {
+      flex: 0 0 40px;
+      background: var(--tone-neutral-solid);
+    }
+
+    &[aria-checked="true"] {
+      border-color: var(--tone-warn-border);
+
+      .training-switch {
+        background: var(--strava-orange);
+      }
+
+      > strong {
+        color: var(--tone-warn-text);
+      }
+    }
+  }
+
+  .training-pain-condition {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .training-settings-error {
+    margin: 8px 0 0;
+    line-height: 1.6;
+
+    button {
+      min-height: 44px;
+      padding: 8px;
+    }
+  }
+
+  .training-plan-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    gap: 12px;
+    margin-top: 9px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 650;
+    text-decoration: none;
+
+    span {
+      font-size: 20px;
+      transition: transform 160ms ease;
+    }
+
+    &:hover span {
+      transform: translateX(3px);
+    }
+  }
+
+  .training-details {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .training-details > summary {
+    min-height: 48px;
+    padding: 13px 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 550;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .training-details[open] {
+    padding-bottom: 16px;
+  }
+
+  .training-details[open] > summary {
+    color: var(--ink);
+  }
+
+  .training-ramp {
+    margin: 4px 0 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .training-title {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .training-ramp-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    > div {
+      padding: 10px;
+    }
+  }
+
+  .training-rehab-progress-labels {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+
+  .training-ramp-simulator {
+    font-size: 13px;
+    font-weight: 450;
+    line-height: 1.5;
+
+    input[type="range"] {
+      min-height: 44px;
+      margin: 0;
+    }
+  }
+
+  .training-ramp-projection {
+    margin-top: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    font-weight: 500;
+  }
+
+  .training-ramp-history-bars {
+    height: 100px;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 7px 3px 5px;
+    scrollbar-width: thin;
+    overscroll-behavior-inline: contain;
+  }
+
+  .training-ramp-history-bar-wrap {
+    display: flex;
+    flex: 1 0 44px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+    min-width: 44px;
+    gap: 4px;
+    height: 100%;
+    padding: 4px 7px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+
+    &:hover,
+    &.training-ramp-history-bar-wrap-selected {
+      border-color: var(--line);
+      background: var(--surface-muted);
+    }
+
+    &:focus-visible {
+      outline-offset: 0;
+    }
+
+    small {
+      font-size: 10px;
+      line-height: 1;
+      text-align: center;
+    }
+  }
+
+  .training-ramp-history-bar-track {
+    display: flex;
+    align-items: flex-end;
+    flex: 1;
+    min-height: 50px;
+  }
+
+  .training-meta {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .training-calculation-grid {
+    display: grid;
+    gap: 9px;
+    margin: 2px 0 12px;
+
+    > div {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    dt {
+      color: var(--muted);
+    }
+
+    dd {
+      margin: 0;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+.next-session-card.next-session-refined {
+  gap: 10px;
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--ink);
+
+  .next-session-type {
+    margin: 0;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 650;
+    line-height: 1.4;
+  }
+
+  .next-session-plan {
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 450;
+    line-height: 1.65;
+  }
+
+  .next-session-details > summary {
+    min-height: 44px;
+    padding: 11px 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 550;
+    cursor: pointer;
+  }
+
+  .next-session-details[open] > summary {
+    color: var(--ink);
+  }
+
+  .next-session-data {
+    display: block;
+    margin: 2px 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .next-session-why {
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .next-session-export {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+  }
+
+  .next-session-export-btn {
+    min-height: 44px;
+    border-color: var(--line);
+    background: var(--ink);
+    color: var(--card);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--ink) 85%, var(--card));
+    }
+  }
+
+  .next-session-export-hint {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
+
+.training-load-card.training-today-card .next-session-card.next-session-embedded {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 6px;
+}
+
+@media (max-width: 540px) {
+  .training-load-card.training-today-card {
+    .training-ramp-summary {
+      grid-template-columns: 1fr;
+      gap: 6px;
+
+      > div {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+    }
+
+    .training-pain-toggle {
+      gap: 9px;
+      padding: 11px;
+    }
+
+    .training-today-heading {
+      gap: 11px;
+    }
+  }
+}

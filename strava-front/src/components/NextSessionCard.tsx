@@ -1,5 +1,8 @@
+import { useId } from "react";
 import { computeTrainingLoad } from "../utils/trainingLoad";
-import { parseStravaLocalDate } from "../utils/dateBuckets";
+import { buildNormalPlan, buildRehabPlan } from "../utils/weeklyPlan";
+import "../styles/today.scss";
+import { addDays, localDateKey, parseStravaLocalDate } from "../utils/dateBuckets";
 import {
   buildTcx,
   distanceBudgetSteps,
@@ -29,15 +32,13 @@ function toDate(value: string) {
   return parseStravaLocalDate(value);
 }
 
-function round1(v: number) {
-  return Math.round(v * 10) / 10;
-}
+const formatKm = (value: number) => value.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-function paceFromSecPerKm(secPerKm: number) {
-  const rounded = Math.round(secPerKm);
+function formatDuration(seconds: number) {
+  const rounded = Math.round(seconds);
   const m = Math.floor(rounded / 60);
   const s = rounded % 60;
-  return `${m}:${String(s).padStart(2, "0")}/km`;
+  return `${m} min ${String(s).padStart(2, "0")} s`;
 }
 
 function analyze(rows: Activity[], predictions: Predictions | null | undefined, hasShinPain: boolean) {
@@ -59,11 +60,14 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
     };
   }
 
-  const inLastDays = (days: number) =>
-    runs.filter((r) => {
-      const ageMs = now.getTime() - r.date!.getTime();
-      return ageMs >= 0 && ageMs <= days * 24 * 3600 * 1000;
+  const todayKey = localDateKey(now);
+  const inLastDays = (days: number) => {
+    const startKey = localDateKey(addDays(now, -(days - 1)));
+    return runs.filter((run) => {
+      const key = localDateKey(run.date!);
+      return key >= startKey && key <= todayKey;
     });
+  };
 
   const runs28 = inLastDays(28);
   if (runs28.length < 3) {
@@ -103,33 +107,34 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
     return intenseByHr || longSteadyHard;
   });
 
-  const remainingToday = metrics.remainingNow;
+  const selectedPlan = hasShinPain ? buildRehabPlan(rows, now) : buildNormalPlan(rows, now);
+  const todaySession = selectedPlan.sessions.find((session) => session.isToday);
+  const remainingToday = todaySession?.status === "planned" && todaySession.type !== "rest" ? todaySession.km : 0;
 
   const fiveKSec = predictions?.predictions?.["5k"];
   const pace5k = typeof fiveKSec === "number" && fiveKSec > 0 ? fiveKSec / 5 : null;
   const rep400 = pace5k ? Math.round(pace5k * 0.4) : null;
-  const rep1000 = pace5k ? Math.round(pace5k + 12) : null; // ~5K pace + 12s/km
 
   const reasons: string[] = [];
-  reasons.push(`Charge 7j ${round1(km7)} km, 28j ${round1(km28)} km (ACR ${round1(acr)}).`);
-  if (hrCoverage > 0) reasons.push(`Données FC sur ${Math.round(hrCoverage * 100)}% des sorties récentes.`);
-  if (hadHard48h) reasons.push("Séance intense détectée dans les 48 dernières heures.");
+  reasons.push(`Course : ${formatKm(km7)} km sur 7 jours, ${formatKm(km28)} km sur 28 jours. Ratio de charge (ACR) : ${acr.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}.`);
+  if (hrCoverage > 0) reasons.push(`Fréquence cardiaque renseignée sur ${Math.round(hrCoverage * 100)} % des sorties récentes.`);
+  if (hadHard48h) reasons.push("Une sortie intense a été détectée hier ou aujourd’hui.");
 
   if (hasShinPain) {
-    const rehabKm = metrics.periostitis.remainingTodayKm;
+    const rehabKm = remainingToday;
     const requiresRest = metrics.periostitis.ranYesterday || rehabKm < 0.5;
     return {
       type: "rehab",
-      title: requiresRest ? "Repos périostite" : "Reprise périostite très progressive",
+      title: requiresRest ? "Repos course" : "Course-marche très facile",
       plan: requiresRest
         ? "Pas de course aujourd'hui. Marche uniquement si indolore, ou cardio sans impact très facile."
-        : `Course-marche très facile: maximum ${round1(rehabKm)} km, terrain plat, sans fractionné ni côtes. Arrête si la douleur apparaît ou augmente.`,
+        : `Au plus ${formatKm(rehabKm)} km sur terrain plat, sans vitesse ni côtes. Reprise seulement si tu peux marcher 30 minutes sans douleur ; arrête si la douleur apparaît.`,
       why: [
         ...reasons,
-        `Plafond périostite cette semaine: ${metrics.periostitis.weeklyCapKm.toFixed(1)} km.`,
+        `Limite du mode prudent cette semaine : ${formatKm(metrics.periostitis.weeklyCapKm)} km.`,
         metrics.periostitis.ranYesterday
           ? "Une sortie a été détectée hier: au moins un jour sans impact est conseillé."
-          : "Progression limitée à 10% maximum par semaine.",
+          : "Le repère de progression hebdomadaire reste une limite, jamais un objectif.",
       ],
       confidence: metrics.confidence,
       workout:
@@ -140,22 +145,33 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
               workoutName: "FabRun Reprise Periostite",
               steps: [
                 stepTime("Marche echauffement", 600, "Resting"),
-                stepDistance(`Course-marche facile ${round1(rehabKm)} km`, Math.round(rehabKm * 1000), "Active"),
+                stepDistance(`Course-marche facile ${formatKm(rehabKm)} km`, Math.round(rehabKm * 1000), "Active"),
                 stepTime("Marche retour au calme", 600, "Resting"),
               ],
             },
     };
   }
 
+  if (remainingToday < 0.5) {
+    return {
+      type: "rest",
+      title: "Repos aujourd'hui",
+      plan: "Pas de course aujourd'hui. Marche douce ou cardio sans impact très facile selon ton ressenti.",
+      why: [...reasons, `Limite estimée de course supplémentaire : ${formatKm(remainingToday)} km.`],
+      confidence: hrCoverage >= 0.5 ? "moyenne" : "faible",
+      workout: null as WorkoutExport | null,
+    };
+  }
+
   if (hadHard48h) {
-    const easyKm = Math.max(0, Math.min(remainingToday, 6.0));
+    const easyKm = Math.max(0, remainingToday);
     return {
       type: "recovery",
-      title: "Séance récupération",
+      title: "Footing de récupération",
       plan:
         remainingToday <= 1.5
-          ? `0-${round1(remainingToday)} km très facile (ou vélo doux / repos).`
-          : `${easyKm.toFixed(1)} km très faciles, allure confortable.`,
+          ? `Au plus ${formatKm(remainingToday)} km très faciles, ou du repos selon ton ressenti.`
+          : `${formatKm(easyKm)} km très faciles, à une allure permettant de parler sans difficulté.`,
       why: reasons,
       confidence: hrCoverage >= 0.5 ? "moyenne" : "faible",
       workout:
@@ -172,9 +188,9 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
   if (remainingToday < 3) {
     return {
       type: "recovery",
-      title: "Séance courte uniquement",
-      plan: `Budget du jour limité: max ${round1(remainingToday)} km facile. Pas de fractionné aujourd'hui.`,
-      why: [...reasons, `Budget restant calculé aujourd'hui: ${round1(remainingToday)} km.`],
+      title: "Footing court",
+      plan: `Au plus ${formatKm(remainingToday)} km en aisance respiratoire. Garde une allure facile.`,
+      why: [...reasons, `Limite estimée de course supplémentaire : ${formatKm(remainingToday)} km.`],
       confidence: hrCoverage >= 0.5 ? "moyenne" : "faible",
       workout:
         remainingToday < 0.5
@@ -188,7 +204,7 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
   }
 
   const qualityDistanceKm = 5.6;
-  if (acr >= 0.85 && acr <= 1.2 && remainingToday >= qualityDistanceKm) {
+  if (todaySession?.type === "interval" && acr >= 0.85 && acr <= 1.2 && remainingToday >= qualityDistanceKm) {
     const qualityWorkout: WorkoutExport | null =
       rep400 == null
         ? null
@@ -200,24 +216,19 @@ function analyze(rows: Activity[], predictions: Predictions | null | undefined, 
 
     return {
       type: "quality",
-      title: "Séance qualité (fractionné)",
-      plan:
-        rep400 && rep1000
-          ? `Option A: 6 x 400 m en ${rep400}s (récup 200 m trot). Option B: 4 x 1 km en ${paceFromSecPerKm(
-              rep1000
-            )} (récup 2').`
-          : "Option A: 6 x 400 m allure 5K (récup 200 m trot). Option B: 4 x 1 km allure 10K (récup 2').",
-      why: [...reasons, `Séance exportée : ${qualityDistanceKm.toFixed(1)} km sur un budget de ${round1(remainingToday)} km.`],
+      title: "Fractionné court",
+      plan: `6 × 400 m ${rep400 ? `en ${formatDuration(rep400)}` : "à ton allure 5 km"}, avec 200 m au trot entre les répétitions. Échauffement et retour au calme inclus : ${formatKm(qualityDistanceKm)} km au total.`,
+      why: [...reasons, `La proposition de ${formatKm(qualityDistanceKm)} km reste sous la limite estimée de ${formatKm(remainingToday)} km.`],
       confidence: hrCoverage >= 0.5 ? "haute" : "moyenne",
       workout: qualityWorkout,
     };
   }
 
-  const easyKm = Math.max(0, Math.min(remainingToday, 8.0));
+  const easyKm = Math.max(0, remainingToday);
   return {
     type: "build",
-    title: "Séance endurance active",
-    plan: `${easyKm.toFixed(1)} km en endurance contrôlée.`,
+    title: "Footing en endurance",
+    plan: `${formatKm(easyKm)} km à une allure confortable, en aisance respiratoire.`,
     why: reasons,
     confidence: hrCoverage >= 0.5 ? "moyenne" : "faible",
     workout:
@@ -235,45 +246,46 @@ export default function NextSessionCard({
   rows,
   predictions,
   hasShinPain,
+  embedded = false,
 }: {
   rows: Activity[];
   predictions?: Predictions | null;
   hasShinPain: boolean;
+  embedded?: boolean;
 }) {
   const rec = analyze(rows, predictions, hasShinPain);
-  const confClass =
-    rec.confidence === "haute" ? "next-conf-high" : rec.confidence === "moyenne" ? "next-conf-medium" : "next-conf-low";
+  const titleId = useId();
+  const dataDescription =
+    rec.confidence === "haute" ? "bien renseignées" : rec.confidence === "moyenne" ? "partielles" : "limitées";
 
   return (
-    <section className="next-session-card">
-      <div className="next-session-head">
-        <div className="next-session-title">Prochaine séance conseillée</div>
-        <span className={`next-session-conf ${confClass}`}>Fiabilité {rec.confidence}</span>
-      </div>
-      <div className="next-session-type">{rec.title}</div>
+    <section className={`next-session-card next-session-refined${embedded ? " next-session-embedded" : ""}`} aria-labelledby={titleId}>
+      <h4 className="next-session-type" id={titleId}>{rec.title}</h4>
       <div className="next-session-plan">{rec.plan}</div>
-      {rec.workout && (
-        <div className="next-session-export">
-          <button
-            className="next-session-export-btn"
-            type="button"
-            onClick={() => {
-              const tcx = buildTcx(rec.workout!);
-              downloadTextFile(rec.workout!.fileName, tcx);
-            }}
-          >
-            Télécharger la séance (.tcx)
-          </button>
-          <div className="next-session-export-hint">
-            Fichier TCX pour montre ou application d'entraînement compatible.
+      <details className="next-session-details">
+        <summary>{rec.workout ? "Détails et export de la séance" : "Pourquoi ce conseil ?"}</summary>
+        <span className="next-session-data">Données récentes : {dataDescription}</span>
+        <ul className="next-session-why">
+          {rec.why.map((reason, index) => (
+            <li key={`${reason}-${index}`}>{reason}</li>
+          ))}
+        </ul>
+        {rec.workout && (
+          <div className="next-session-export">
+            <button
+              className="next-session-export-btn"
+              type="button"
+              onClick={() => {
+                const tcx = buildTcx(rec.workout!);
+                downloadTextFile(rec.workout!.fileName, tcx);
+              }}
+            >
+              Télécharger la séance (.tcx)
+            </button>
+            <div className="next-session-export-hint">Pour une montre ou une application compatible TCX.</div>
           </div>
-        </div>
-      )}
-      <ul className="next-session-why">
-        {rec.why.map((r, i) => (
-          <li key={`${r}-${i}`}>{r}</li>
-        ))}
-      </ul>
+        )}
+      </details>
     </section>
   );
 }
