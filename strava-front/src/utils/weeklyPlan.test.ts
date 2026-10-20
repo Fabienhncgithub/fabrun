@@ -89,3 +89,29 @@ describe("pain mode restricts the same normal plan", () => {
     expect(sum(plan.sessions.filter((session) => session.status === "done" && session.type !== "rest"))).toBeGreaterThan(plan.targetKm);
   });
 });
+
+describe("weather adaptation", () => {
+  it("avoids every rainy future day and preserves imported runs", () => {
+    const now = new Date(2026, 9, 13, 12);
+    const rows = quotedLoad();
+    const rainy = new Set(Array.from({ length: 6 }, (_, i) => localDateKey(addDays(now, i))));
+    for (const build of [buildNormalPlan, buildRehabPlan]) {
+      const original = build(rows, now);
+      const adapted = build(rows, now, rainy);
+      expect(futureRuns(adapted.sessions)).toHaveLength(0);
+      expect(adapted.sessions.filter(s => s.status === "done")).toEqual(original.sessions.filter(s => s.status === "done"));
+    }
+  });
+  it("moves a rainy template session onto an available dry day", () => {
+    const now = new Date(2026, 9, 13, 12);
+    const rows = quotedLoad();
+    const original = buildNormalPlan(rows, now);
+    const first = futureRuns(original.sessions)[0];
+    expect(first).toBeDefined();
+    const rainy = new Set([localDateKey(first.date)]);
+    const adapted = buildNormalPlan(rows, now, rainy);
+    expect(futureRuns(adapted.sessions).every(s => !rainy.has(localDateKey(s.date)))).toBe(true);
+    expect(futureRuns(adapted.sessions).some(s => original.sessions.find(o => localDateKey(o.date) === localDateKey(s.date))?.type === "rest")).toBe(true);
+    assertRestricted(adapted, buildRehabPlan(rows, now, rainy));
+  });
+});

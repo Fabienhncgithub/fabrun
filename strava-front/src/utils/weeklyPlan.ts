@@ -276,7 +276,7 @@ function expectedWeekKm(sessions: PlannedSession[]) {
   );
 }
 
-export function buildNormalPlan(rows: PlanActivity[], now = new Date()) {
+export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDays: ReadonlySet<string> = new Set()) {
   const runs = getRuns(rows);
   if (runs.length === 0) {
     return {
@@ -364,6 +364,20 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date()) {
       details: normalSessionDetails(planned.type, km),
     };
   });
+  // Move only future template sessions, then recalculate all load limits in date order.
+  const actuals = actualKmByDay(rawSessions, runs);
+  const today = startOfDay(now);
+  for (let index = 0; index < rawSessions.length; index++) {
+    const session = rawSessions[index];
+    if (session.type === "rest" || session.date < today || !rainyDays.has(localDateKey(session.date)) || actuals.has(localDateKey(session.date))) continue;
+    const alternatives = rawSessions.map((candidate, i) => ({ candidate, i }))
+      .filter(({ candidate }) => candidate.type === "rest" && candidate.date >= today && !rainyDays.has(localDateKey(candidate.date)) && !actuals.has(localDateKey(candidate.date)))
+      .sort((a, b) => Math.abs(a.i - index) - Math.abs(b.i - index) || a.i - b.i);
+    const replacement = alternatives[0];
+    const rest = replacement?.candidate ?? { ...session, type: "rest" as const, ratio: 0, km: 0 };
+    if (replacement) rawSessions[replacement.i] = { ...session, date: replacement.candidate.date };
+    rawSessions[index] = { ...rest, date: session.date, title: "Repos · forte pluie", details: "Forte pluie prévue à Genève : séance déplacée si un autre jour et la charge le permettent." };
+  }
   const sessions = adaptNormalSessions(rawSessions, runs, now, targetKm);
   const expectedKm = expectedWeekKm(sessions);
   const progressionBaseKm = expectedKm > 0 ? expectedKm : targetKm;
@@ -389,8 +403,8 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date()) {
   return { targetKm, level, sessions, progression, reasons };
 }
 
-export function buildRehabPlan(rows: PlanActivity[], now = new Date()) {
-  const normalPlan = buildNormalPlan(rows, now);
+export function buildRehabPlan(rows: PlanActivity[], now = new Date(), rainyDays: ReadonlySet<string> = new Set()) {
+  const normalPlan = buildNormalPlan(rows, now, rainyDays);
   if (normalPlan.sessions.length === 0) return normalPlan;
 
   const metrics = computeTrainingLoad(rows, now);

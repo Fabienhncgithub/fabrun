@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { fetchGenevaRainyDays } from "../utils/genevaWeather";
 import { computeTrainingLoad } from "../utils/trainingLoad";
 import { localDateKey } from "../utils/dateBuckets";
 import { buildNormalPlan, buildRehabPlan, type PlanActivity as Activity, type PlannedSession } from "../utils/weeklyPlan";
@@ -36,8 +38,23 @@ export default function WeeklyTrainingPlanCard({
   predictions?: Predictions | null;
   hasShinPain: boolean;
 }) {
+  const [weather, setWeather] = useState<{ days: Set<string>; status: string }>({ days: new Set(), status: "Météo Genève : chargement…" });
+  useEffect(() => {
+    const controller = new AbortController();
+    async function refresh() {
+      try {
+        const days = await fetchGenevaRainyDays(controller.signal);
+        if (!controller.signal.aborted) setWeather({ days, status: "Météo Genève prise en compte · fortes pluies évitées (≥ 4 mm/h, 6–22 h)." });
+      } catch {
+        if (!controller.signal.aborted) setWeather({ days: new Set(), status: "Météo Genève indisponible : calendrier habituel, sans adaptation météo." });
+      }
+    }
+    void refresh();
+    const timer = window.setInterval(() => { void refresh(); }, 60 * 60 * 1000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, []);
   const now = new Date();
-  const plan = hasShinPain ? buildRehabPlan(rows, now) : buildNormalPlan(rows, now);
+  const plan = hasShinPain ? buildRehabPlan(rows, now, weather.days) : buildNormalPlan(rows, now, weather.days);
   const load = computeTrainingLoad(rows, now);
   const weekWorkouts = plan.sessions
     .map(sessionToWorkout)
@@ -79,7 +96,7 @@ export default function WeeklyTrainingPlanCard({
           <strong>{shortDateFormatter.format(session.date)}</strong>
         </time>
         <div className="week-schedule-content">
-          <strong>{isRest ? isPast ? "Journée sans course" : "Repos course" : session.title}</strong>
+          <strong>{isRest ? isPast ? "Journée sans course" : session.title === "Repos · forte pluie" ? session.title : "Repos course" : session.title}</strong>
           <span className={`week-schedule-state week-schedule-state-${session.status}${isRest ? " week-schedule-state-rest" : ""}`}>
             {statusLabel(session, hasShinPain)}
           </span>
@@ -107,6 +124,8 @@ export default function WeeklyTrainingPlanCard({
           </div>
         )}
       </header>
+
+      <p className="week-plan-policy">{weather.status} <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p>
 
       {plan.sessions.length === 0 ? (
         <div className="week-plan-empty">
