@@ -431,3 +431,71 @@
   .week-schedule-entry.weekly-plan-status-done:not(.weekly-plan-rest) { background: var(--tone-good-bg); }
   .week-schedule-entry.weekly-plan-status-planned:not(.weekly-plan-rest) { background: var(--tone-warn-bg); }
 }
+
+.weekly-plan-card.weekly-plan-card-v2 {
+  .plan-weather-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px;
+    margin-bottom: 18px;
+    border: 1px solid color-mix(in srgb, #559ccc 28%, var(--line));
+    border-radius: 14px;
+    background: linear-gradient(125deg, color-mix(in srgb, #559ccc 11%, var(--card)), var(--surface-soft));
+    > div { display: grid; gap: 7px; flex: 1 1 240px; }
+    strong { font-size: 14px; font-weight: 650; color: var(--ink); }
+    p { margin: 0; max-width: 65ch; font-size: 12px; line-height: 1.6; color: var(--muted); }
+  }
+  .plan-weather-location { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
+  .plan-weather-source { font-size: 10px; color: var(--muted); line-height: 1.6; }
+  .plan-weather-source a { color: inherit; text-underline-offset: 3px; }
+  .plan-weather-heading-error { border-color: var(--tone-warn-border); background: var(--tone-warn-bg); }
+  .week-schedule-row { grid-template-rows: auto 1fr auto auto; min-height: 250px; }
+  .week-schedule-distance { grid-row: 4; }
+  .plan-day-weather {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: grid;
+    gap: 9px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    min-width: 0;
+  }
+  .plan-day-weather-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    > span { display: grid; gap: 2px; min-width: 0; }
+    strong { color: var(--ink); font-size: 18px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    small { color: var(--muted); font-size: 12px; font-weight: 450; }
+    span > span { font-size: 11px; color: var(--muted); }
+  }
+  .plan-weather-icon { flex-shrink: 0; color: #5f96bd; }
+  .plan-weather-icon-sun { color: #d49a2b; }
+  .plan-weather-icon-storm { color: #9485c2; }
+  .plan-day-weather-rain { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .plan-weather-warning { font-size: 10px; line-height: 1.5; font-weight: 650; color: var(--tone-warn-text); }
+  .plan-day-weather-heavy { border-color: var(--tone-warn-border); }
+  .plan-day-weather-heavy .plan-weather-icon { color: var(--tone-warn-text); }
+  .plan-weather-unavailable { grid-column: 1 / -1; grid-row: 3; font-size: 10px; color: var(--muted); padding-top: 12px; border-top: 1px solid var(--line); }
+  .plan-day-weather-compact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 12px;
+    .plan-day-weather-main > span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+    .plan-day-weather-main strong { font-size: 16px; }
+    .plan-day-weather-rain { gap: 14px; font-size: 12px; }
+  }
+  @container (min-width: 530px) {
+    .week-schedule-row { min-height: 265px; }
+    .plan-day-weather-main { gap: 5px; }
+    .plan-weather-icon { width: 26px; height: 26px; }
+    .plan-day-weather-main strong { font-size: 16px; }
+  }
+}

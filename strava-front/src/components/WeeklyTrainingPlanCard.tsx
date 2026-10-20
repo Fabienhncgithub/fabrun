@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { fetchGenevaRainyDays } from "../utils/genevaWeather";
+import { fetchGenevaForecast, type GenevaForecast } from "../utils/genevaWeather";
+import PlanWeather from "./PlanWeather";
 import { computeTrainingLoad } from "../utils/trainingLoad";
 import { localDateKey } from "../utils/dateBuckets";
 import { buildNormalPlan, buildRehabPlan, type PlanActivity as Activity, type PlannedSession } from "../utils/weeklyPlan";
@@ -38,15 +39,16 @@ export default function WeeklyTrainingPlanCard({
   predictions?: Predictions | null;
   hasShinPain: boolean;
 }) {
-  const [weather, setWeather] = useState<{ days: Set<string>; status: string }>({ days: new Set(), status: "Météo Genève : chargement…" });
+  const [weather, setWeather] = useState<GenevaForecast | null>(null);
+  const [weatherError, setWeatherError] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     async function refresh() {
       try {
-        const days = await fetchGenevaRainyDays(controller.signal);
-        if (!controller.signal.aborted) setWeather({ days, status: "Météo Genève prise en compte · fortes pluies évitées (≥ 4 mm/h, 6–22 h)." });
+        const forecast = await fetchGenevaForecast(controller.signal);
+        if (!controller.signal.aborted) { setWeather(forecast); setWeatherError(false); }
       } catch {
-        if (!controller.signal.aborted) setWeather({ days: new Set(), status: "Météo Genève indisponible : calendrier habituel, sans adaptation météo." });
+        if (!controller.signal.aborted) { setWeather(null); setWeatherError(true); }
       }
     }
     void refresh();
@@ -54,7 +56,8 @@ export default function WeeklyTrainingPlanCard({
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
   const now = new Date();
-  const plan = hasShinPain ? buildRehabPlan(rows, now, weather.days) : buildNormalPlan(rows, now, weather.days);
+  const plan = hasShinPain ? buildRehabPlan(rows, now, weather?.rainyDays) : buildNormalPlan(rows, now, weather?.rainyDays);
+  const basePlan = hasShinPain ? buildRehabPlan(rows, now) : buildNormalPlan(rows, now);
   const load = computeTrainingLoad(rows, now);
   const weekWorkouts = plan.sessions
     .map(sessionToWorkout)
@@ -77,6 +80,7 @@ export default function WeeklyTrainingPlanCard({
   const targetLabel = "Total prévu";
   const progressionReferenceKm = load.weeklyRamp.capKm;
   const nextSession = plan.sessions.find((session) => session.status === "planned" && session.type !== "rest");
+  const nextWeather = nextSession ? weather?.daily.get(localDateKey(nextSession.date)) : undefined;
   const weekLabel = plan.sessions.length > 0
     ? `${shortDateFormatter.format(plan.sessions[0].date)} – ${shortDateFormatter.format(plan.sessions[6].date)}`
     : null;
@@ -89,6 +93,8 @@ export default function WeeklyTrainingPlanCard({
   function sessionRow(session: PlannedSession) {
     const isRest = session.type === "rest";
     const isPast = session.status !== "planned" && !session.isToday;
+    const dayWeather = !isPast ? weather?.daily.get(localDateKey(session.date)) : undefined;
+    const weatherChanged = session.status === "planned" && session.type !== "rest" && basePlan.sessions.find(s => localDateKey(s.date) === localDateKey(session.date))?.type === "rest";
     return (
       <>
         <time className="week-schedule-date" dateTime={localDateKey(session.date)} aria-label={fullDateFormatter.format(session.date)}>
@@ -98,9 +104,12 @@ export default function WeeklyTrainingPlanCard({
         <div className="week-schedule-content">
           <strong>{isRest ? isPast ? "Journée sans course" : session.title === "Repos · forte pluie" ? session.title : "Repos course" : session.title}</strong>
           <span className={`week-schedule-state week-schedule-state-${session.status}${isRest ? " week-schedule-state-rest" : ""}`}>
-            {statusLabel(session, hasShinPain)}
+            {weatherChanged ? "Déplacée · météo" : statusLabel(session, hasShinPain)}
           </span>
         </div>
+        {!isPast && (dayWeather
+          ? <PlanWeather day={dayWeather} heavy={weather?.rainyDays.has(localDateKey(session.date)) ?? false} />
+          : <span className="plan-weather-unavailable">{weatherError ? "Météo indisponible" : weather ? "Prévision indisponible" : "Chargement météo…"}</span>)}
         <span className="week-schedule-distance">
           {isRest ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M9 7v10M15 7v10" /><circle cx="12" cy="12" r="9" /></svg>
             : session.status === "missed" ? "—" : <>{formatKm(session.km)} <small>km</small></>}
@@ -125,7 +134,11 @@ export default function WeeklyTrainingPlanCard({
         )}
       </header>
 
-      <p className="week-plan-policy">{weather.status} <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p>
+      <div className={`plan-weather-heading${weatherError ? " plan-weather-heading-error" : ""}`} role="status">
+        <div><span className="plan-weather-location">◎ Genève</span><strong>{weather ? "Votre semaine, au rythme de la météo" : weatherError ? "Prévisions momentanément indisponibles" : "On regarde le ciel pour vos sorties…"}</strong>
+        <p>{weather ? "Les jours de forte pluie laissent place au repos. Les sorties sont réorganisées selon la récupération." : weatherError ? "Le calendrier habituel reste affiché, sans adaptation météo." : "Chargement des prévisions et adaptation du calendrier."}</p></div>
+        <span className="plan-weather-source">{weather && <>Actualisé à {new Intl.DateTimeFormat("fr-CH", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" }).format(weather.updatedAt)} · </>}<a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></span>
+      </div>
 
       {plan.sessions.length === 0 ? (
         <div className="week-plan-empty">
@@ -144,6 +157,7 @@ export default function WeeklyTrainingPlanCard({
                   <span>{formatKm(nextSession.km)} km{hasShinPain ? " max." : ""}</span>
                 </div>
                 <p>{nextSession.title}{hasShinPain ? " · uniquement sans douleur" : ""}</p>
+                {nextWeather && <PlanWeather day={nextWeather} heavy={false} compact /> }
               </>
             ) : (
               <>
@@ -197,7 +211,7 @@ export default function WeeklyTrainingPlanCard({
           </div>
 
           <div className="week-plan-footer">
-            <p>Recalculé après chaque synchronisation Strava.</p>
+            <p>Météo actualisée chaque heure · plan recalculé après synchronisation.</p>
             {weekWorkouts.length > 0 && (
               <button
                 className="week-plan-export"
@@ -217,6 +231,7 @@ export default function WeeklyTrainingPlanCard({
                 Les kilomètres déjà courus remplacent le programme du jour. Seules les séances à venir sont
                 recalculées. Une séance manquée n’est pas automatiquement rattrapée.
               </p>
+              <p>À Genève, une prévision de 4 mm/h ou plus entre 6 h et 22 h écarte la journée. Les températures, cumuls et probabilités affichés couvrent la journée entière. Une séance déplacée reste soumise aux limites de charge.</p>
               {progressionReferenceKm != null && <p>
                 Repère de progression : {formatKm(load.weeklyRamp.previousWeekKm)} km la semaine dernière × 1,10 = {formatKm(progressionReferenceKm)} km.
                 Sans douleur, ce repère sert de référence au volume de la semaine ; le plan le répartit sur les séances disponibles sans concentrer le reliquat sur une seule sortie.
