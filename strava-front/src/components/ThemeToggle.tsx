@@ -15,4 +15,3 @@ export default function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggl
     </button>
   );
 }
-
