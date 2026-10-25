@@ -38,3 +38,6 @@
 		-Server
 	}
 }
+
+# Sites published by the other stacks hosted on this VPS. An empty folder is fine.
+import /etc/caddy/sites/*.caddy

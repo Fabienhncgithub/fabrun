@@ -85,6 +85,20 @@ docker run --rm --user 0 --entrypoint chown \
 
 Cette migration permet ensuite à Caddy de fonctionner avec l’utilisateur non privilégié `fabrun`.
 
+## Sites hébergés à côté de FabRun
+
+Le conteneur Caddy de FabRun sert aussi de reverse proxy aux autres projets du VPS. Il importe
+chaque fichier `deploy/sites/*.caddy` et rejoint le réseau Docker `photography-edge`, à créer
+une seule fois :
+
+```bash
+docker network create photography-edge
+```
+
+Chaque projet publie lui-même son fichier dans `deploy/sites/` puis recharge Caddy ; ces
+fichiers ne sont pas versionnés ici. Un redéploiement de FabRun conserve donc les autres sites,
+sans fichier d'override à ne pas oublier.
+
 ## 6. Mettre à jour
 
 ```bash

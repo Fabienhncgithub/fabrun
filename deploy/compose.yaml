@@ -50,6 +50,7 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+      - ./sites:/etc/caddy/sites:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
@@ -65,8 +66,12 @@ services:
     networks:
       fabrun:
         ipv4_address: 172.30.0.2
+      edge:
 
 networks:
+  edge:
+    external: true
+    name: photography-edge
   fabrun:
     ipam:
       config:

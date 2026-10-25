@@ -14,3 +14,7 @@
 Data/*.json
 
 .pnpm-store/
+
+# Site files published by the other stacks on the VPS
+deploy/sites/*
+!deploy/sites/.gitkeep
