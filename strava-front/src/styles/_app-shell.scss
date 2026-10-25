@@ -1,0 +1,533 @@
+@use "./breakpoints" as bp;
+
+#root {
+  width: min(100%, var(--content-width));
+  margin-inline: auto;
+  padding: var(--page-gutter) var(--page-gutter) clamp(2rem, 5vw, 4rem);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--strava-orange);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px);
+}
+
+.brand-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #101010;
+}
+
+.brand-sub {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-toggle:hover {
+  border-color: var(--strava-orange);
+  transform: translateY(-1px);
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--strava-orange);
+  color: white;
+  padding: 10px 14px;
+  font-weight: 700;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:hover {
+  background: var(--strava-orange-dark);
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
+.chip {
+  background: #fff6f2;
+  border: 1px solid #ffd8c5;
+  color: #a33803;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.topbar-last-sync {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.panel-head {
+  margin-bottom: 10px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.dashboard-last-sync {
+  margin: -6px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.glance-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--strava-orange) 30%, var(--line));
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--strava-orange) 5%, var(--surface-soft));
+}
+
+.glance-group-heading {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.dashboard-nav {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-nav a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  text-decoration: none;
+  transition: border-color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.dashboard-nav a:hover {
+  border-color: color-mix(in srgb, var(--strava-orange) 55%, var(--line));
+  transform: translateY(-2px);
+}
+
+.dashboard-nav a > span {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--strava-orange);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.dashboard-nav strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-nav small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel[id] {
+  scroll-margin-top: 104px;
+}
+
+.two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alert {
+  border: 1px solid #f5c3c3;
+  background: #fff5f5;
+  color: var(--danger);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-weight: 600;
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-line,
+.skeleton-block {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eceef1 25%, #f5f6f8 37%, #eceef1 63%);
+  background-size: 400% 100%;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+.skeleton-title {
+  width: 40%;
+  height: 16px;
+}
+
+.skeleton-line {
+  width: 90%;
+  height: 12px;
+}
+
+.skeleton-line-short {
+  width: 55%;
+}
+
+.skeleton-chart {
+  height: 160px;
+  width: 100%;
+}
+
+.skeleton-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skeleton-tile {
+  height: 54px;
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@include bp.dashboard-compact {
+  .skeleton-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card-error-fallback {
+  border: 1px dashed #f5c3c3;
+  background: #fff5f5;
+  border-radius: var(--radius-card);
+  padding: 14px;
+}
+
+.card-error-title {
+  color: var(--danger);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.card-error-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kpis-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.weekly-energy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@include bp.mobile {
+  .weekly-energy-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpis-section {
+  display: grid;
+  gap: 10px;
+}
+
+.kpis-section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #111827;
+}
+
+.kpi-tile {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.kpi-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kpi-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.activities-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.activities-table-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.activities-table-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.activities-table-search {
+  flex: 1 1 240px;
+}
+
+.activities-table-search input {
+  width: min(100%, 320px);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.activities-export {
+  padding-block: 8px;
+}
+
+.activities-table-link {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.activities-table-link:hover {
+  border-bottom-color: var(--strava-orange);
+}
+
+.activities-table-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px 8px;
+}
+
+.activities-table-more {
+  margin-top: 12px;
+}
+
+.activities-table-wrap {
+  overflow-x: auto;
+}
+
+.activities-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.activities-table thead th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #fbfbfc;
+}
+
+.activities-table tbody td {
+  border-bottom: 1px solid #f0f1f3;
+  padding: 10px 8px;
+  font-size: 14px;
+}
+
+.activities-table tbody tr:hover {
+  background: #fff9f5;
+}
+
+.activities-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.activities-table .type-cell {
+  white-space: nowrap;
+}
+
+.sport-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.sport-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.sport-run {
+  background: #fff3ec;
+  border-color: #ffd8c7;
+  color: #b1440f;
+}
+
+.sport-ski {
+  background: #edf7ff;
+  border-color: #cce6ff;
+  color: #0f4f83;
+}
+
+.sport-strength {
+  background: #f5f3ff;
+  border-color: #dfd6ff;
+  color: #4f3f96;
+}
+
+.sport-bike {
+  background: #effdf4;
+  border-color: #c9f0d6;
+  color: #18613a;
+}
+
+.sport-walk,
+.sport-hike {
+  background: #f7f8f3;
+  border-color: #e4e7db;
+  color: #50603d;
+}
+
+.sport-other {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #374151;
+}
