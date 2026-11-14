@@ -1,8 +1,24 @@
 # FabRun
 
+[![Checks](https://github.com/Fabienhncgithub/fabrun/actions/workflows/security.yml/badge.svg)](https://github.com/Fabienhncgithub/fabrun/actions/workflows/security.yml)
+
 FabRun est un tableau de bord personnel pour analyser ses activités Strava, suivre sa charge d’entraînement et estimer ses performances en course à pied.
 
 Le projet réunit une API ASP.NET Core et une interface React. L’authentification Strava utilise OAuth 2.0 et les jetons restent dans des cookies sécurisés non accessibles au JavaScript du navigateur.
+
+## Choix et limites
+
+Le projet répond à mon besoin de réunir mes activités et mes repères
+d’entraînement dans une seule interface. L’API isole les appels Strava des
+calculs ; les préférences et résultats calculés restent sur le serveur.
+
+Le déploiement actuel vise un usage personnel sur une seule instance. Le
+stockage JSON local et ses verrous ne constituent pas un stockage distribué.
+Une version multi-instance demanderait une base partagée et une coordination
+des accès. Les prévisions de course et recommandations sont des estimations.
+
+Les données Strava sont privées : le dépôt contient le code, pas un compte de
+démonstration donnant accès aux activités personnelles.
 
 ## Fonctionnalités
 
@@ -34,13 +50,15 @@ Le projet réunit une API ASP.NET Core et une interface React. L’authentificat
 
 ```text
 strava-front/                 Interface React et TypeScript
+  src/components/             Cartes, navigation et en-tête
+  src/styles/                 Styles répartis par fonction
 Controllers/                 Endpoints HTTP de l’API
 Services/                    Calculs et logique métier
 Infrastructure/External/    Communication avec Strava
 Infrastructure/Persistence/ Stockage local des données calculées
 Models/                      Modèles de données
 Security/                    Noms et configuration des cookies
-FabRun.Api.Tests/            Tests unitaires
+FabRun.Api.Tests/            Tests unitaires et d’intégration
 deploy/                      Déploiement Docker avec Caddy
 docs/                        Documentation d’architecture
 ```

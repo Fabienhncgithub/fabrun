@@ -1,0 +1,505 @@
+@use "./breakpoints" as bp;
+.athlete-settings-card {
+  display: grid;
+  gap: 12px;
+}
+
+.athlete-calorie-profile {
+  display: grid;
+  gap: 8px;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.athlete-calorie-profile-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.athlete-calorie-profile-row label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.athlete-calorie-profile-row input {
+  width: 90px;
+}
+
+.panel input,
+.panel select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--input-bg);
+}
+
+.panel ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+@include bp.dashboard-compact {
+  .kpis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .two-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shoe-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@include bp.mobile {
+  #root {
+    padding: 14px 10px 32px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weekly-plan-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brand-title {
+    font-size: 28px;
+  }
+
+  .weekly-km-chart {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .weekly-km-plot-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .weekly-km-svg {
+    height: 165px;
+  }
+
+  .weekly-km-y-axis {
+    height: 165px;
+  }
+
+  .weekly-km-labels {
+    margin-left: 40px;
+  }
+
+  .weekly-km-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .weekly-km-tab {
+    flex: 1;
+  }
+
+  .weekly-km-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .form-grade {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .form-trend-plot-stats {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .shoe-main-row {
+    align-items: flex-start;
+  }
+
+  .shoe-health {
+    min-width: 84px;
+  }
+}
+.access-shell {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, #fff7ed 0, #f7f7f8 48%, #eef1f4 100%);
+}
+
+.access-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 14px;
+  padding: 30px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0 24px 60px rgb(17 24 39 / 12%);
+}
+
+.access-card .theme-toggle {
+  justify-self: end;
+}
+
+.access-brand {
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 800;
+  color: #ea580c;
+}
+
+.access-card h1,
+.access-card p { margin: 0; }
+.access-card label { font-size: 13px; font-weight: 800; }
+.access-card input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.btn-secondary {
+  border-color: #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.btn-secondary:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+  color: #111827;
+}
+
+:root[data-theme="dark"] {
+  .topbar,
+  .panel,
+  .access-card,
+  .goal-race-item,
+  .goal-race-form {
+    border-color: var(--line);
+    background: var(--card);
+  }
+
+  .brand-title,
+  .kpis-section-title,
+  .form-trend-title,
+  .weekly-plan-title,
+  .next-session-title,
+  .next-session-type,
+  .goal-race-name,
+  .shoe-name,
+  .prediction-reference,
+  .best-effort-item strong,
+  .form-trend-plot-title,
+  .form-trend-score-title {
+    color: var(--ink);
+  }
+
+  .kpi-tile,
+  .best-effort-item,
+  .training-rehab-summary > div,
+  .weekly-plan-item,
+  .form-trend-plot,
+  .card-error-fallback {
+    border-color: var(--line);
+    background: var(--surface-soft);
+  }
+
+  .training-load-card,
+  .next-session-card,
+  .next-session-export,
+  .weekly-plan-ramp-item,
+  .weekly-km-chart,
+  .form-trend-summary,
+  .form-trend-plot-card,
+  .shoe-item {
+    border-color: var(--line);
+    background: var(--surface-soft);
+  }
+
+  .weekly-plan-target,
+  .weekly-km-controls,
+  .weekly-plan-rest,
+  .weekly-plan-easy,
+  .weekly-plan-tempo,
+  .weekly-plan-interval,
+  .weekly-plan-long {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--surface-muted);
+  }
+
+  .training-value,
+  .training-text,
+  .training-reco,
+  .training-details > summary,
+  .next-session-plan,
+  .weekly-plan-item-title,
+  .weekly-plan-km,
+  .weekly-plan-ramp-km,
+  .weekly-km-title,
+  .form-grade-value,
+  .form-grade-score,
+  .form-summary-line,
+  .form-trend-plot-stats,
+  .shoe-km,
+  .shoe-brand-logo {
+    color: var(--ink);
+  }
+
+  .training-title,
+  .training-meta,
+  .training-rehab-summary span,
+  .next-session-why,
+  .next-session-export-hint,
+  .weekly-plan-day,
+  .weekly-plan-detail,
+  .weekly-plan-notes,
+  .weekly-plan-ramp-label,
+  .weekly-km-tab,
+  .weekly-km-sub,
+  .weekly-km-stats,
+  .weekly-km-label,
+  .prediction-score,
+  .prediction-reasons,
+  .prediction-hint,
+  .form-trend-sub,
+  .form-grade-label,
+  .form-trend-metrics,
+  .form-trend-plot-sub,
+  .form-trend-label,
+  .form-trend-empty,
+  .shoes-empty,
+  .shoe-sub {
+    color: var(--muted);
+  }
+
+  // .training-zone-*, .training-confidence-*, .form-pill-* and .badge-* are
+  // no longer listed here: they consume the --tone-* custom properties
+  // (styles/base.scss), which already carry their own dark-mode values.
+  .training-injury-mode,
+  .next-conf-medium,
+  .sport-run {
+    border-color: rgb(251 146 60 / 42%);
+    color: #ffad7a;
+    background: rgb(249 115 22 / 12%);
+  }
+
+  .next-conf-high,
+  .weekly-plan-status-badge-done,
+  .sport-bike {
+    border-color: rgb(74 222 128 / 36%);
+    color: #86efac;
+    background: rgb(34 197 94 / 12%);
+  }
+
+  .next-conf-low {
+    border-color: rgb(251 113 133 / 38%);
+    color: #fda4af;
+    background: rgb(244 63 94 / 12%);
+  }
+
+  .sport-ski,
+  .weekly-plan-status-badge-planned {
+    border-color: rgb(96 165 250 / 38%);
+    color: #93c5fd;
+    background: rgb(59 130 246 / 12%);
+  }
+
+  .sport-strength {
+    border-color: rgb(167 139 250 / 38%);
+    color: #c4b5fd;
+    background: rgb(139 92 246 / 12%);
+  }
+
+  .sport-walk,
+  .sport-hike,
+  .sport-other,
+  .weekly-plan-status-badge-missed {
+    border-color: var(--line);
+    color: var(--muted);
+    background: var(--surface-muted);
+  }
+
+  .sport-icon {
+    background: rgb(255 255 255 / 10%);
+  }
+
+  .activities-table thead th {
+    background: var(--surface-soft);
+  }
+
+  .activities-table tbody td {
+    border-bottom-color: var(--line);
+  }
+
+  .activities-table tbody tr:hover {
+    background: color-mix(in srgb, var(--strava-orange) 10%, var(--card));
+  }
+
+  .prediction-tile,
+  .weekly-km-tooltip {
+    border-color: #2c3747;
+    background: #0d131d;
+  }
+
+  .btn-secondary,
+  .shoes-sort-btn,
+  .theme-toggle {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--surface-soft);
+  }
+
+  .btn-secondary:hover,
+  .shoes-sort-btn:hover {
+    border-color: #4b5b70;
+    color: var(--ink);
+    background: var(--surface-muted);
+  }
+
+  .shoes-sort-btn-active,
+  .shoes-sort-btn-active:hover {
+    border-color: var(--strava-orange);
+    color: #fff;
+    background: var(--strava-orange-dark);
+  }
+
+  .training-switch,
+  .weekly-km-tab,
+  .weekly-km-range,
+  .shoe-brand-logo {
+    border-color: var(--line);
+    background: var(--surface-muted);
+  }
+
+  .form-trend-grid-line,
+  .weekly-km-grid-line {
+    stroke: #303b4b;
+  }
+
+  .weekly-km-point {
+    stroke: var(--surface-soft);
+  }
+
+  .skeleton-line,
+  .skeleton-block {
+    background: linear-gradient(90deg, #1b2431 25%, #273243 37%, #1b2431 63%);
+    background-size: 400% 100%;
+  }
+
+  .access-shell {
+    background:
+      radial-gradient(circle at top, rgb(252 76 2 / 18%) 0, transparent 42%),
+      var(--surface-page);
+  }
+
+  .access-card input {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--input-bg);
+  }
+
+  .chip {
+    border-color: rgb(252 76 2 / 38%);
+    color: #ff9b73;
+    background: rgb(252 76 2 / 12%);
+  }
+}
+
+.training-ramp-history-bar-wrap {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.training-ramp-history-bar-wrap:hover,
+.training-ramp-history-bar-wrap:focus-visible,
+.training-ramp-history-bar-wrap-selected {
+  outline: 2px solid var(--line);
+  outline-offset: 1px;
+}
+
+.training-week-detail {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.training-week-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.training-week-detail-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.training-week-detail-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.training-week-detail-km {
+  font-weight: 700;
+}
+
+.training-week-detail-bar-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+
+.training-week-detail-bar {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.training-week-detail-label {
+  font-weight: 700;
+}

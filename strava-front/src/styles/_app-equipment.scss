@@ -1,0 +1,420 @@
+@use "./breakpoints" as bp;
+.shoes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shoes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shoes-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shoes-sort-btn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #4b5563;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shoes-sort-btn:hover {
+  transform: none;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.shoes-sort-btn-active,
+.shoes-sort-btn-active:hover {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+.shoes-empty {
+  margin: 0;
+  color: #6b7280;
+}
+
+.shoes-list {
+  display: grid;
+  gap: 8px;
+}
+
+.shoe-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #eef0f2;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.shoe-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.shoe-photo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.shoe-brand-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #111827;
+  text-transform: uppercase;
+}
+
+.shoe-brand-nike {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.shoe-brand-adidas {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+
+.shoe-brand-hoka {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.shoe-brand-asics {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #fff;
+}
+
+.shoe-brand-new_balance {
+  background: #991b1b;
+  border-color: #991b1b;
+  color: #fff;
+}
+
+.shoe-brand-on {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+.shoe-brand-saucony {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.shoe-brand-brooks {
+  background: #0369a1;
+  border-color: #0369a1;
+  color: #fff;
+}
+
+.shoe-brand-salomon {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.shoe-brand-puma {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.shoe-brand-mizuno {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #fff;
+}
+
+.shoe-brand-altra {
+  background: #ea580c;
+  border-color: #ea580c;
+  color: #fff;
+}
+
+.shoe-name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.shoe-km-block {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.shoe-km {
+  font-weight: 800;
+  font-size: 16px;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+.shoe-km-green {
+  color: #166534;
+}
+
+.shoe-km-orange {
+  color: #b45309;
+}
+
+.shoe-km-red {
+  color: #b91c1c;
+}
+
+.shoe-wear {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shoe-wear-green {
+  color: #166534;
+}
+
+.shoe-wear-orange {
+  color: #b45309;
+}
+
+.shoe-wear-red {
+  color: #b91c1c;
+}
+
+.shoe-sub {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.shoe-eta {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.shoes-intro,
+.shoes-disclaimer,
+.athlete-settings-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shoes-list-detailed {
+  gap: 12px;
+}
+
+.shoes-list-detailed .shoe-item {
+  display: grid;
+  align-items: stretch;
+  justify-content: initial;
+  gap: 12px;
+  padding: 16px;
+  border-left-width: 4px;
+  background: var(--surface-soft);
+}
+
+.shoe-item-fresh { border-left-color: var(--tone-good-solid); }
+.shoe-item-normal { border-left-color: #3b82f6; } // mid-life "info" state, no equivalent in the good/warn/bad/neutral tone family
+.shoe-item-warning { border-left-color: var(--tone-warn-solid); }
+.shoe-item-critical { border-left-color: var(--tone-bad-solid); }
+
+.shoe-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.shoes-list-detailed .shoe-photo,
+.shoes-list-detailed .shoe-brand-logo {
+  width: 48px;
+  height: 48px;
+  font-size: 12px;
+}
+
+.shoe-health {
+  display: grid;
+  min-width: 130px;
+  justify-items: end;
+  text-align: right;
+}
+
+.shoe-health strong {
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.shoe-health span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.shoe-health-warning strong { color: var(--tone-warn-solid); }
+.shoe-health-critical strong { color: var(--tone-bad-solid); }
+
+.shoe-life-bar {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.shoe-life-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 300ms var(--ease-out);
+}
+
+.shoe-life-fill-fresh { background: var(--tone-good-solid); }
+.shoe-life-fill-normal { background: #3b82f6; }
+.shoe-life-fill-warning { background: var(--tone-warn-solid); }
+.shoe-life-fill-critical { background: var(--tone-bad-solid); }
+
+.shoe-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shoe-metrics-grid > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.shoe-metrics-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shoe-metrics-grid strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shoe-projection {
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--strava-orange) 8%, var(--card));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.shoe-editors {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.shoe-threshold-editor {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shoe-brand-editor label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shoe-brand-editor select {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--ink);
+  text-transform: none;
+  font-size: 13px;
+}
+
+.shoe-threshold-editor label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shoe-threshold-editor label span {
+  color: var(--ink);
+  text-transform: none;
+}
+
+.shoe-threshold-editor input {
+  width: 100px;
+}
+
+.shoe-save-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shoe-checklist {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shoe-checklist summary {
+  width: fit-content;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
