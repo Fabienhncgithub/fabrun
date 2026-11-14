@@ -1,3 +1,5 @@
+import { fetchGarminActivities, type GarminActivityBatch } from "../api";
+import { matchGarminActivities } from "../utils/garminActivityMatch";
 import { useMemo, useState } from "react";
 import { activeCalories, type CalorieProfile } from "../utils/activityEnergy";
 import { downloadTextFile } from "../utils/workoutExport";
@@ -96,6 +98,16 @@ export default function ActivitiesTable({
   calorieProfile?: CalorieProfile;
   shoes: Shoe[];
 }) {
+  const [garmin, setGarmin] = useState<GarminActivityBatch | null>(null);
+  const [garminLoading, setGarminLoading] = useState(false);
+  const [garminError, setGarminError] = useState("");
+  const matches = useMemo(() => matchGarminActivities(rows, garmin?.activities ?? []), [rows, garmin]);
+  async function loadGarmin() {
+    setGarminLoading(true); setGarminError("");
+    try { setGarmin(await fetchGarminActivities()); }
+    catch (e) { setGarminError(e instanceof Error ? e.message : "Bilans Garmin indisponibles."); }
+    finally { setGarminLoading(false); }
+  }
   const [sportFilter, setSportFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -140,6 +152,9 @@ export default function ActivitiesTable({
   return (
     <div>
       <div className="activities-table-toolbar">
+        <button type="button" className="btn btn-secondary" disabled={garminLoading} onClick={loadGarmin}>
+          {garminLoading ? "Chargement Garmin…" : garmin ? "Actualiser les bilans Garmin" : "Charger les bilans Garmin"}
+        </button>
         <label className="activities-table-filter activities-table-search">
           Recherche
           <input
@@ -196,6 +211,10 @@ export default function ActivitiesTable({
         </button>
       </div>
 
+      {garminError && <p role="alert">{garminError}</p>}
+      {garmin && <p className="garmin-activity-note">{matches.size} séances rapprochées sur {rows.length} activités · Garmin Connect · du {garmin.from} au {garmin.until}.
+        {garmin.truncated && " Historique Garmin limité aux 1 089 dernières activités."}
+        {" "}Une séance sans correspondance certaine reste sans bilan.</p>}
       <div className="activities-table-wrap">
         <table className="activities-table">
           <thead>
@@ -225,6 +244,8 @@ export default function ActivitiesTable({
                     >
                       {a.name}
                     </a>
+                    {garmin && (matches.get(a.id) ? <GarminSessionSummary activity={matches.get(a.id)!} />
+                      : <div className="garmin-activity-note">Aucun bilan Garmin associé</div>)}
                   </td>
                   <td className="type-cell">
                     <span className={`sport-badge ${visual.className}`}>
@@ -264,4 +285,18 @@ export default function ActivitiesTable({
       )}
     </div>
   );
+}
+
+function GarminSessionSummary({ activity }: { activity: import("../api").GarminActivity }) {
+  const value = (n: number | null, unit = "") => n == null ? "Indisponible" : `${n.toLocaleString("fr-CH", { maximumFractionDigits: 1 })}${unit}`;
+  return <details className="garmin-session-summary">
+    <summary>Bilan Garmin · charge {value(activity.load)}</summary>
+    <dl>
+      <dt>Charge de séance</dt><dd>{value(activity.load)} — coût physiologique estimé par Garmin, à comparer à tes autres séances.</dd>
+      <dt>Effet aérobie</dt><dd>{value(activity.aerobic, " / 5")} — effet sur ta capacité à soutenir un effort dans la durée.</dd>
+      <dt>Effet anaérobie</dt><dd>{value(activity.anaerobic, " / 5")} — effet sur tes efforts courts et intenses.</dd>
+    </dl>
+    <a href={`https://connect.garmin.com/modern/activity/${activity.id}`} target="_blank" rel="noopener noreferrer">Voir la séance dans Garmin Connect</a>
+    <p>Source : Garmin Connect. Rapprochement par sport, heure de départ, distance et durée.</p>
+  </details>;
 }

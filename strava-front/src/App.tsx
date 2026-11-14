@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchAccessStatus,
   fetchStravaStatus,
@@ -16,12 +16,15 @@ import {
   type Kpis,
   type PredictionResponse,
   type Profile,
-  type SleepSummary,
 } from "./api";
 import ActivitiesTable from "./components/ActivitiesTable";
 import KpisCard from "./components/KpisCard";
+import GarminRecoveryCard from "./components/GarminRecoveryCard";
+import ReadinessCard from "./components/ReadinessCard";
+import { buildCoach } from "./utils/coach";
+import { useGarmin } from "./utils/useGarmin";
+import { useGenevaForecast } from "./utils/useGenevaForecast";
 import TrainingLoadCard from "./components/TrainingLoadCard";
-import FormTrendCard from "./components/FormTrendCard";
 import ShoeUsageCard from "./components/ShoeUsageCard";
 import PerformancePredictionsCard from "./components/PerformancePredictionsCard";
 import GoalRaceCard from "./components/GoalRaceCard";
@@ -84,7 +87,6 @@ export default function App() {
   const [kpisPreviousYear, setKpisPreviousYear] = useState<Kpis | null>(null);
   const [kpisTwoYearsAgo, setKpisTwoYearsAgo] = useState<Kpis | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [sleepSummary, setSleepSummary] = useState<SleepSummary | null>(null);
   const [predictions, setPredictions] = useState<PredictionResponse | null>(null);
   const [predictionsLoading, setPredictionsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -108,7 +110,16 @@ export default function App() {
   const ageYears = athleteSettings?.ageYears ?? null;
   const sex = athleteSettings?.sex ?? null;
   const calorieProfile = { ageYears, sex };
-  const effectiveWeightKg = profile?.weight;
+  // Garmin (scale or Connect entry) is the reference weight; Strava's profile weight is the fallback.
+  const garmin = useGarmin(rows != null);
+  const effectiveWeightKg = garmin.recovery?.weightKg ?? profile?.weight;
+  const forecast = useGenevaForecast(rows != null);
+  const coachGoals = athleteSettings?.goalRaces;
+  // One plan for the whole training page: today's advice and the week always agree.
+  const coach = useMemo(() => rows ? buildCoach({
+    rows, predictions, hasShinPain, goalRaces: coachGoals,
+    recovery: garmin.recovery, weather: forecast.weather, weatherError: forecast.weatherError,
+  }) : null, [rows, predictions, hasShinPain, coachGoals, garmin.recovery, forecast.weather, forecast.weatherError]);
 
   useEffect(() => applyTheme(theme), [theme]);
 
@@ -156,7 +167,6 @@ export default function App() {
     setKpisPreviousYear(null);
     setKpisTwoYearsAgo(null);
     setProfile(null);
-    setSleepSummary(null);
     setPredictions(null);
     setAthleteSettings(null);
     setLastUpdatedAt(null);
@@ -359,7 +369,6 @@ export default function App() {
       setKpisPreviousYear(data.kpisPreviousYear ?? null);
       setKpisTwoYearsAgo(data.kpisTwoYearsAgo ?? null);
       setProfile(data.profile ?? null);
-      setSleepSummary(data.sleep ?? null);
       setPredictionsLoading(true);
       setAthleteSettingsError(null);
       const [predictionResult, settingsResult] = await Promise.allSettled([
@@ -551,13 +560,14 @@ export default function App() {
                     <>
                       <section className="panel today-panel" id="aujourdhui">
                         <CardErrorBoundary title="Conseil du jour">
-                          <TrainingLoadCard rows={rows} hasShinPain={hasShinPain} onShinPainChange={updateShinPain} settingsSaving={settingsSaving} settingsError={shinPainSyncError}>
-                            {!hasShinPain && <NextSessionCard embedded rows={rows} predictions={predictions} hasShinPain={hasShinPain} />}
+                          <TrainingLoadCard rows={rows} hasShinPain={hasShinPain} onShinPainChange={updateShinPain} settingsSaving={settingsSaving} settingsError={shinPainSyncError}
+                            coach={coach ?? undefined} status={coach && <ReadinessCard readiness={coach.readiness} garmin={garmin} />}>
+                            {!hasShinPain && coach && <NextSessionCard embedded coach={coach} />}
                           </TrainingLoadCard>
                         </CardErrorBoundary>
                       </section>
                       <section className="panel week-panel" id="plan-semaine">
-                        <CardErrorBoundary title="Plan de la semaine"><WeeklyTrainingPlanCard rows={rows} predictions={predictions} hasShinPain={hasShinPain} /></CardErrorBoundary>
+                        <CardErrorBoundary title="Plan de la semaine"><WeeklyTrainingPlanCard rows={rows} predictions={predictions} hasShinPain={hasShinPain} coach={coach ?? undefined} /></CardErrorBoundary>
                       </section>
                     </>
                   ) : (
@@ -574,7 +584,7 @@ export default function App() {
                 </div>
 
                 <div className="dashboard-view" id="recuperation" hidden={activePage !== "recuperation"} aria-labelledby="dashboard-page-title">
-                  <section className="panel"><CardErrorBoundary title="Évolution de forme"><FormTrendCard rows={rows} sleep={sleepSummary} /></CardErrorBoundary></section>
+                  <section className="panel"><CardErrorBoundary title="Garmin"><GarminRecoveryCard garmin={garmin} /></CardErrorBoundary></section>
                   <section className="panel"><CardErrorBoundary title="Énergie et activité"><WeeklyEnergyCard rows={rows} athleteWeightKg={effectiveWeightKg} calorieProfile={calorieProfile} /></CardErrorBoundary></section>
                   <details className="panel profile-settings"><summary>Ton profil de calcul</summary><CardErrorBoundary title="Profil de calcul">
                     {athleteSettings ? <AthleteProfileSettingsCard key={`${ageYears ?? "none"}-${sex ?? "none"}`} ageYears={ageYears} sex={sex} saving={settingsSaving} onSaveCalorieProfile={updateCalorieProfile} /> : settingsFallback}

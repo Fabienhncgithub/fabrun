@@ -56,7 +56,12 @@ FABRUN_ACCESS_PASSWORD=un-mot-de-passe-long-unique
 FABRUN_SESSION_VERSION=une-valeur-aleatoire-distincte
 STRAVA_CLIENT_ID=identifiant-strava
 STRAVA_CLIENT_SECRET=secret-strava
+# Facultatif : active la page Récupération et la forme du jour
+GARMIN_PERSONAL_API_KEY=cle-personnelle-garmin
 ```
+
+La clé Garmin se crée sur <https://connect.garmin.com/app/settings/personalApiToken>. Elle reste
+côté serveur. Sans elle, FabRun fonctionne avec Strava seul et la forme du jour reste « inconnue ».
 
 Le fichier `.env.production` est ignoré par Git. Ne jamais le committer ni envoyer son contenu dans une conversation.
 Le mot de passe doit contenir au moins 20 caractères et la version de session au moins 16 caractères.

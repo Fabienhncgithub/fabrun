@@ -65,6 +65,19 @@ public sealed class SecurityIntegrationTests : IDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, settings.StatusCode);
     }
 
+    [Theory]
+    [InlineData("GET", "/api/garmin/status")]
+    [InlineData("POST", "/api/garmin/sync")]
+    [InlineData("POST", "/api/garmin/history?period=7d")]
+    [InlineData("POST", "/api/garmin/activities")]
+    public async Task GarminEndpointsRejectAnonymousCallers(string method, string path)
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        using var response = await _client.SendAsync(request);
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.BadRequest });
+        Assert.DoesNotContain("recovery", await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task LoginRejectsRequestsWithoutAntiforgeryToken()
     {
@@ -91,6 +104,26 @@ public sealed class SecurityIntegrationTests : IDisposable
             "PUT",
             response.Headers.GetValues("Access-Control-Allow-Methods").Single(),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RateLimitResponseKeepsCorsHeadersForBrowserClients()
+    {
+        HttpResponseMessage? response = null;
+        for (var i = 0; i < 121; i++)
+        {
+            response?.Dispose();
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/access/status");
+            request.Headers.Add("Origin", "https://localhost:5173");
+            response = await _client.SendAsync(request);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests) break;
+        }
+        using (response)
+        {
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+            Assert.Equal("https://localhost:5173", response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        }
     }
 
     [Fact]

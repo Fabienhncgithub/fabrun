@@ -167,3 +167,104 @@ Les instructions complètes sont disponibles dans [deploy/README.md](deploy/READ
 ## Données et secrets
 
 Les fichiers de données, clés privées, certificats locaux et fichiers d’environnement ne doivent pas être publiés. En production, utiliser des secrets distincts, un mot de passe d’accès aléatoire, une valeur `FABRUN_SESSION_VERSION` aléatoire et des sauvegardes chiffrées des volumes persistants.
+
+## Coach d’entraînement
+
+La page **Entraînement** croise Strava, Garmin, l’objectif de course et la météo
+pour dire quoi courir, à quelle allure et quand. Tout est calculé dans le
+navigateur ([strava-front/src/utils/coach.ts](strava-front/src/utils/coach.ts)),
+une seule fois pour la carte du jour et le plan de la semaine.
+
+- **Allures personnalisées** : zones endurance, sortie longue, seuil, fractionné
+  long et court, dérivées de l’estimation 5 km. Chaque séance est écrite en
+  clair (répétitions, temps de passage, récupération) et exportée en TCX avec
+  ses étapes. Sans estimation 5 km, aucune allure n’est inventée.
+- **Forme du jour** : feu vert, orange ou rouge à partir de la HRV, du sommeil,
+  du pouls au repos, de la Body Battery au réveil et de la charge récente.
+  Orange retire l’intensité, rouge retire la course. Les kilomètres retirés ne
+  sont pas rattrapés. Sans mesure Garmin datée du jour, la forme reste
+  « inconnue » et le plan n’est pas modifié. Garmin est synchronisé
+  automatiquement à l’ouverture si l’instantané date de la veille.
+- **Plan vers l’objectif** : la prochaine course de la page Objectifs définit
+  les phases (base, développement, spécifique, affûtage, semaine de course),
+  comptées à rebours. Une semaine sur quatre est allégée de 20 %, l’affûtage
+  réduit le volume, et la semaine de course place un déblocage, un repos la
+  veille et la course. Sans objectif, le plan suit la règle des +10 %.
+- **Bilan des sorties** : allure et fréquence cardiaque moyennes comparées aux
+  zones. Des footings à fréquence cardiaque élevée ralentissent les allures
+  d’endurance de 3 % ; l’inverse les accélère de 2 %. La dérive cardiaque
+  pendant la sortie n’est pas analysée.
+- **Meilleur créneau** : heure de départ la plus sèche, douce et lumineuse
+  entre 6 h et 22 h, d’après les prévisions horaires Open-Meteo pour Genève.
+
+Le mode prudent (douleur au tibia) garde la forme du jour mais désactive les
+allures, l’intensité et la préparation spécifique.
+
+## Garmin Connect Personal API
+
+Garmin complète Strava dans la page **Récupération** : sommeil mesuré sur 30 jours,
+score et phases de sommeil, HRV nocturne et moyenne hebdomadaire, fréquence
+cardiaque au repos, stress, Body Battery, calories brûlées et poids. Les mesures
+absentes restent indisponibles. Les activités continuent à provenir de Strava,
+sans doublons.
+
+Garmin est la source de référence pour l’énergie :
+
+- **Calories journalières** : total, actives et repos (métabolisme de base)
+  issus des résumés quotidiens Garmin, sur toute la journée. Elles sont affichées
+  dans un tableau avec la moyenne par jour. La journée en cours est partielle et
+  exclue des moyennes.
+- **Calories par activité** : valeur fournie par la montre via Strava. FabRun ne
+  fait jamais la moyenne de deux sources. Son estimation (Keytel ou MET) ne sert
+  que lorsqu’aucune valeur mesurée n’existe.
+- **Poids** : la dernière pesée Garmin (sur 180 jours) remplace le poids du
+  profil Strava dans ces estimations. L’API Garmin renvoie le poids en grammes,
+  bien que le Swagger indique des kilogrammes : les deux unités sont acceptées.
+
+1. Créer une clé sur https://connect.garmin.com/app/settings/personalApiToken.
+2. En local, enregistrer `GARMIN_PERSONAL_API_KEY` avec les secrets utilisateur
+   .NET (`dotnet user-secrets set GARMIN_PERSONAL_API_KEY "votre-cle"`). En
+   production, ajouter cette variable à `deploy/.env.production` puis recréer
+   le conteneur API selon les instructions de déploiement.
+3. Ouvrir **Récupération**, puis **Synchroniser Garmin** après la synchronisation
+   de la montre avec Garmin Connect.
+
+La clé reste sur le serveur et n'est jamais renvoyée au navigateur. Le serveur
+obtient un jeton Bearer et le renouvelle avant 24 heures, ou après un refus 401.
+La clé personnelle doit être remplacée à son expiration chez Garmin. Cette
+intégration vise le compte personnel du propriétaire de cette instance privée ;
+une application destinée à plusieurs utilisateurs nécessite l'offre Business.
+
+`GET /api/garmin/status` indique la configuration et le dernier résultat en mémoire.
+`POST /api/garmin/activities` renvoie la charge et les effets aérobie et anaérobie
+des 365 derniers jours, rapprochés des activités Strava dans la page Activités.
+`POST /api/garmin/sync` synchronise les données avec la protection de session et
+CSRF existante. Un cache de 15 minutes limite les appels. Les données Garmin ne
+sont pas conservées sur disque : après un redémarrage, resynchroniser. Elles sont
+utilisées par le coach d’entraînement pour la forme du jour (voir plus haut).
+
+Contrat utilisé : [Swagger officiel Garmin](https://developer.garmin.com/gc-developer-program/personal/swagger-docs/).
+
+Sur macOS, si AppleCrypto refuse la négociation TLS 1.3 exigée par Garmin, un
+relais de développement local peut être indiqué avec `Garmin__DevelopmentRelay`
+(URL HTTP loopback exclusivement). Ce réglage est ignoré en production. Le
+relais doit valider le certificat HTTPS Garmin et ne jamais journaliser les
+jetons. Aucun relais n'est nécessaire pour les environnements .NET prenant
+en charge TLS 1.3 vers Garmin.
+
+L’historique de récupération propose 1 jour, 7 jours, 1 mois, 4 mois, 1 an et
+2 ans. `POST /api/garmin/history?period=7d` accepte `1d`, `7d`, `1m`, `4m`,
+`1y` et `2y`. Le serveur charge les mesures par blocs de 31 jours, réutilisés
+pendant 15 minutes entre les périodes. Les vues annuelles affichent les moyennes
+mensuelles des jours renseignés. Les jours absents ne valent jamais zéro. La
+vue 1 jour utilise les résumés quotidiens, sans détail intrajournalier.
+
+Dans **Activités**, le bouton **Charger les bilans Garmin** récupère jusqu’à
+1 089 séances des 365 derniers jours, avec un cache de 15 minutes. Le panneau
+**Bilan Garmin** affiche la charge et les effets aérobie/anaérobie sur 5.
+`POST /api/garmin/activities` expose ces résumés, avec les protections de session
+et CSRF habituelles. Aucun doublon d’activité n’est créé : les listes Strava
+restent la référence. Le rapprochement exige un même sport, un départ à moins
+de 2 minutes, une distance à moins de 3 % (tolérance minimale 100 m) et une durée
+à moins de 10 % (tolérance minimale 60 s). Les cas ambigus ne sont pas associés.
+Les effets absents restent indisponibles ; la valeur zéro est conservée.

@@ -84,8 +84,8 @@ export default function WeeklyEnergyCard({
       </div>
       <p className="training-meta">
         {current.coveredActivities === 0
-          ? "Calories indisponibles: renseigne ton poids dans Strava pour permettre l’estimation."
-          : `${current.estimated ? "Estimation" : "Mesure Strava"} sur ${current.coveredActivities}/${current.totalActivities} activité(s). Comparaison avec les 7 jours précédents.`}
+          ? "Calories indisponibles: synchronise ton poids Garmin ou renseigne-le dans Strava pour permettre l’estimation."
+          : `${current.estimated ? "Estimation" : "Mesure de la montre via Strava"} sur ${current.coveredActivities}/${current.totalActivities} activité(s). Comparaison avec les 7 jours précédents.`}
       </p>
     </section>
   );

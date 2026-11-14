@@ -358,8 +358,8 @@ export default function FormTrendCard({
           <div className="form-trend-sub">BPM et efficacite cardio sur 12 mois</div>
         </div>
         <div className="form-grade">
-          <span className="form-grade-label">Forme du jour</span>
-          <span className="form-grade-value">Grade {score.grade}</span>
+          <span className="form-grade-label">Indice de charge FabRun</span>
+          <span className="form-grade-value">Repère {score.grade}</span>
           <span className="form-grade-score">{score.score}/100</span>
         </div>
       </div>
@@ -377,7 +377,7 @@ export default function FormTrendCard({
       <div className="form-trend-metrics">
         <span>Etat: {score.status}</span>
         <span>Charge 7j: {score.km7.toFixed(1)} km</span>
-        <span>Base 42j: {score.chronicWeek.toFixed(1)} km/sem</span>
+        <span>Base 28j: {score.chronicWeek.toFixed(1)} km/sem</span>
         <span>Ratio charge: {score.loadRatio == null ? "—" : score.loadRatio.toFixed(2)}</span>
         <span>Sorties comparables: {sampleCount}</span>
       </div>

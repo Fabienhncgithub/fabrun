@@ -3184,3 +3184,11 @@
 .training-week-detail-label {
   font-weight: 700;
 }
+
+.garmin-session-summary {
+  margin-top: 8px; white-space: normal; max-width: 420px; font-size: 12px;
+  summary { color: #fc4c02; cursor: pointer; font-weight: 700; }
+  dl { margin: 12px 0; } dt { font-weight: 700; margin-top: 10px; }
+  dd { margin: 4px 0 0; line-height: 1.5; } p { opacity: .7; line-height: 1.5; }
+}
+.garmin-activity-note { font-size: 12px; opacity: .7; line-height: 1.5; }

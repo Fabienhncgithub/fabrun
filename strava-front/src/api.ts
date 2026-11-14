@@ -243,6 +243,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       // noop
     }
 
+    if (r.status === 429) {
+      throw new ApiRequestError("Trop de requêtes. Patiente un moment, puis réessaie.", r.status, "HTTP_ERROR");
+    }
+
     if (r.status === 401 || r.status === 403) {
       if (!(await fetchAccessStatus())) {
         throw new ApiRequestError(
@@ -298,3 +302,38 @@ export async function updateAthleteSettings(settings: AthleteSettingsInput) {
     body: JSON.stringify(settings),
   });
 }
+
+export type GarminNight = {
+  date: string; hours: number; score: number | null;
+  deepMinutes: number | null; remMinutes: number | null; awakeMinutes: number | null;
+  nightStress?: number | null; respiration?: number | null; spO2?: number | null;
+};
+export type GarminRecovery = {
+  date: string; syncedAtUtc: string; nights: GarminNight[];
+  hrvMs: number | null; hrvWeeklyMs: number | null; restingHeartRate: number | null;
+  stress: number | null; bodyBattery: number | null; bodyBatteryAtWake: number | null;
+  hrvStatus?: string | null; hrvBaselineLow?: number | null; hrvBaselineHigh?: number | null;
+  restingHeartRate7d?: number | null; nightRecharge?: number | null; lastDeviceSyncUtc?: string | null;
+  weightKg?: number | null; weightDate?: string | null;
+};
+export const fetchGarminStatus = () => apiFetch<{ configured: boolean; recovery: GarminRecovery | null }>("/api/garmin/status");
+export const syncGarmin = () => apiFetch<GarminRecovery>("/api/garmin/sync", { method: "POST" });
+
+export type GarminHistoryDay = {
+  date: string; sleepHours: number | null; sleepScore: number | null;
+  hrvMs: number | null; restingHeartRate: number | null; stress: number | null; bodyBattery: number | null;
+  caloriesTotal: number | null; caloriesActive: number | null; caloriesResting: number | null; weightKg: number | null;
+};
+export type GarminPeriod = "1d" | "7d" | "1m" | "4m" | "1y" | "2y";
+export type GarminHistory = { from: string; until: string; days: GarminHistoryDay[] };
+export const fetchGarminHistory = (period: GarminPeriod, signal?: AbortSignal) =>
+  apiFetch<GarminHistory>(`/api/garmin/history?period=${period}`, { method: "POST", signal });
+
+export type GarminActivity = {
+  id: number; startLocal: string; sport: string; distance: number; duration: number;
+  load: number | null; aerobic: number | null; anaerobic: number | null;
+};
+export type GarminActivityBatch = {
+  from: string; until: string; syncedAtUtc: string; activities: GarminActivity[]; truncated: boolean;
+};
+export const fetchGarminActivities = () => apiFetch<GarminActivityBatch>("/api/garmin/activities", { method: "POST" });

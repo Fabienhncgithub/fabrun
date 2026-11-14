@@ -1,6 +1,19 @@
 import { computeTrainingLoad } from "./trainingLoad";
 import { computeNormalWeekTarget } from "./trainingPlan";
 import { parseStravaLocalDate } from "./dateBuckets";
+import { formatPace, type PaceZones } from "./paces";
+import { parseGoalDate, type RacePlan } from "./racePhase";
+import type { Readiness } from "./readiness";
+import { buildSessionWorkout, type SessionWorkout } from "./workoutBuilder";
+
+/** Optional coaching inputs. Without them the plan only follows the running load. */
+export type PlanCoach = {
+  paces: PaceZones | null;
+  race: RacePlan | null;
+  readiness: Readiness | null;
+  /** Yesterday's run was already a hard effort. */
+  hardYesterday?: boolean;
+};
 export type PlanActivity = {
   sport_type: string;
   distance: number;
@@ -22,6 +35,12 @@ export type PlannedSession = {
   details: string;
   status: SessionStatus;
   isToday: boolean;
+  /** Structured content (paces, repetitions) when coaching inputs are available. */
+  workout?: SessionWorkout;
+  /** The goal race itself: its distance is fixed and never reallocated. */
+  race?: boolean;
+  /** Why today's session differs from the template (recovery signals). */
+  adjustment?: string;
 };
 
 type WeekTarget = {
@@ -32,6 +51,7 @@ type WeekTarget = {
 type DatedRun = PlanActivity & { date: Date };
 type RawSession = Omit<PlannedSession, "status" | "isToday">;
 type AllocationSlot = { index: number; weight: number; capKm: number };
+type Describe = (type: SessionType, km: number) => { details: string; workout?: SessionWorkout };
 
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 
@@ -197,12 +217,16 @@ function adaptNormalSessions(
   sessions: RawSession[],
   runs: DatedRun[],
   now: Date,
-  targetKm: number
+  targetKm: number,
+  describe: Describe
 ) {
   const today = startOfDay(now);
   const actuals = actualKmByDay(sessions, runs);
   const actualWeekKm = Array.from(actuals.values()).reduce((sum, km) => sum + km, 0);
-  let remainingKm = Math.max(0, targetKm - actualWeekKm);
+  const upcomingRaceKm = sessions
+    .filter((session) => session.race && startOfDay(session.date) >= today && (actuals.get(localDateKey(session.date)) ?? 0) <= 0.05)
+    .reduce((sum, session) => sum + session.km, 0);
+  let remainingKm = Math.max(0, targetKm - actualWeekKm - upcomingRaceKm);
   const projectedRows: PlanActivity[] = [...runs];
 
   return sessions.map((session, index): PlannedSession => {
@@ -211,13 +235,14 @@ function adaptNormalSessions(
     const actualKm = actuals.get(localDateKey(session.date)) ?? 0;
     if (actualKm > 0.05) return completedSession(session, actualKm, isToday);
     if (day < today) return pastSession(session);
+    if (session.race) return { ...session, status: "planned", isToday };
 
     // Recalculate the remaining volume on usable future dates. A blocked
     // date is removed before allocating, so its kilometres do not disappear.
     const slots: AllocationSlot[] = sessions.flatMap((candidate, candidateIndex) => {
       const candidateDay = startOfDay(candidate.date);
       const hasActual = (actuals.get(localDateKey(candidate.date)) ?? 0) > 0.05;
-      if (candidateIndex < index || candidateDay < today || hasActual || candidate.type === "rest") return [];
+      if (candidateIndex < index || candidateDay < today || hasActual || candidate.type === "rest" || candidate.race) return [];
       const daily = computeTrainingLoad(projectedRows, candidateDay.getTime() === today.getTime() ? now : candidate.date);
       return daily.remainingNow >= 0.5 ? [{ index: candidateIndex, weight: Math.max(candidate.ratio, 0.1), capKm: daily.remainingNow }] : [];
     });
@@ -226,7 +251,9 @@ function adaptNormalSessions(
     const metrics = computeTrainingLoad(projectedRows, isToday ? now : session.date);
     const acceptedKm = floor1(Math.min(allocatedKm, metrics.remainingNow, remainingKm));
     if (acceptedKm >= 0.5) {
-      const type = (session.type === "interval" || session.type === "tempo") && acceptedKm < 5.6
+      // Too short to hold a quality block, or to deserve the name "long run".
+      const type = ((session.type === "interval" || session.type === "tempo") && acceptedKm < 5.6)
+        || (session.type === "long" && acceptedKm < 6)
         ? "easy"
         : session.type;
       remainingKm = Math.max(0, remainingKm - acceptedKm);
@@ -241,7 +268,7 @@ function adaptNormalSessions(
         type,
         title: type === "easy" && session.type !== "easy" ? "Endurance facile" : session.title,
         km: acceptedKm,
-        details: normalSessionDetails(type, acceptedKm),
+        ...describe(type, acceptedKm),
         status: "planned",
         isToday,
       };
@@ -276,7 +303,69 @@ function expectedWeekKm(sessions: PlannedSession[]) {
   );
 }
 
-export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDays: ReadonlySet<string> = new Set()) {
+/** Kilometres run in a calendar week, `weeksAgo` weeks before the current one. */
+function pastWeekKm(runs: DatedRun[], now: Date, weeksAgo: number) {
+  const start = localDateKey(addDays(currentMonday(now), -7 * weeksAgo));
+  const end = localDateKey(addDays(currentMonday(now), -7 * weeksAgo + 6));
+  return runs.reduce((sum, run) => {
+    const key = localDateKey(run.date);
+    return key >= start && key <= end ? sum + run.distance / 1000 : sum;
+  }, 0);
+}
+
+/**
+ * Race week is written explicitly: an easy run early in the week, a short
+ * shake-out two days before, rest the day before, then the race.
+ */
+function raceWeekSessions(race: RacePlan, monday: Date, referenceKm: number): RawSession[] | null {
+  const raceDate = parseGoalDate(race.goal.targetDate);
+  if (!raceDate) return null;
+  const raceDay = Math.round((startOfDay(raceDate).getTime() - monday.getTime()) / 86_400_000);
+  if (raceDay < 0 || raceDay > 6) return null;
+  const shakeoutKm = 4;
+  const easyKm = round1(clamp(referenceKm * 0.5 - shakeoutKm, 3, 8));
+  const easyDay = raceDay - 4 >= 0 ? raceDay - 4 : raceDay - 5;
+  const pace = race.goalPace != null ? ` Allure cible : ${formatPace(race.goalPace)}/km.` : "";
+  return Array.from({ length: 7 }, (_, day): RawSession => {
+    const date = addDays(monday, day);
+    if (day === raceDay) {
+      return { date, type: "long", ratio: 0, km: round1(race.goal.distanceKm), race: true, title: `Course · ${race.goal.label}`,
+        details: `Jour de course : ${formatKm(race.goal.distanceKm)} km.${pace} Pars légèrement en dessous de ton allure cible sur les premiers kilomètres.` };
+    }
+    if (day === raceDay - 1) return { date, type: "rest", ratio: 0, km: 0, title: "Repos · veille de course", details: "Repos complet, hydratation et sommeil." };
+    if (day === raceDay - 2) {
+      return { date, type: "easy", ratio: 0.4, km: shakeoutKm, title: "Déblocage",
+        details: `${formatKm(shakeoutKm)} km très faciles, puis 4 lignes droites de 20 secondes pour garder du rythme.` };
+    }
+    if (day === easyDay) return { date, type: "easy", ratio: 0.6, km: easyKm, title: "Endurance facile", details: normalSessionDetails("easy", easyKm) };
+    return { date, type: "rest", ratio: 0, km: 0, title: "Repos / mobilité", details: normalSessionDetails("rest", 0) };
+  });
+}
+
+/** Recovery signals only ever lighten today's session; removed kilometres are not caught up. */
+function applyReadiness(sessions: PlannedSession[], readiness: Readiness | null | undefined, describe: Describe): PlannedSession[] {
+  if (!readiness || (readiness.level !== "orange" && readiness.level !== "red")) return sessions;
+  return sessions.map((session): PlannedSession => {
+    if (!session.isToday || session.status !== "planned" || session.type === "rest" || session.race) return session;
+    if (readiness.level === "red") {
+      return { ...session, type: "rest", km: 0, ratio: 0, workout: undefined, title: "Repos · récupération",
+        details: "Récupération incomplète ce matin : pas de course aujourd’hui. Marche ou mobilité légère si tu en as envie.",
+        adjustment: `${session.title} retirée : plusieurs signaux de récupération sont en retrait. Ces kilomètres ne sont pas rattrapés.` };
+    }
+    if (session.type === "easy") {
+      return { ...session, adjustment: "Séance maintenue car elle est déjà facile : reste dans le bas de la zone d’allure." };
+    }
+    const km = floor1(session.km * (session.type === "long" ? 0.75 : 0.8));
+    const type: SessionType = session.type === "long" ? "long" : "easy";
+    return { ...session, type, km, ...describe(type, km),
+      title: session.type === "long" ? "Sortie longue raccourcie" : "Endurance facile",
+      adjustment: session.type === "long"
+        ? "Sortie longue raccourcie de 25 % : un signal de récupération est en retrait."
+        : `${session.title} remplacé par un footing : l’intensité attendra un jour où tu es mieux récupéré.` };
+  });
+}
+
+export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDays: ReadonlySet<string> = new Set(), coach?: PlanCoach) {
   const runs = getRuns(rows);
   if (runs.length === 0) {
     return {
@@ -307,7 +396,25 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
       reasons: ["Au moins trois sorties récentes sont nécessaires pour proposer une semaine fiable."],
     };
   }
-  const { chronicWeek, acr, level, targetKm } = target;
+  const { chronicWeek, acr, level } = target;
+  const race = coach?.race ?? null;
+  // After a planned lighter week, progress from the week before it rather than from the reduced volume.
+  const referenceKm = race?.previousWeekWasRecovery
+    ? Math.max(target.targetKm, round1(pastWeekKm(runs, now, 2) * 1.05))
+    : target.targetKm;
+  const monday = currentMonday(now);
+  const raceWeek = race?.phase === "race-week" ? raceWeekSessions(race, monday, referenceKm) : null;
+  const targetKm = raceWeek
+    ? round1(raceWeek.reduce((sum, session) => sum + session.km, 0))
+    : round1(referenceKm * (race?.volumeFactor ?? 1));
+  const weekIndex = Math.round(monday.getTime() / (7 * 86_400_000));
+  const describe: Describe = (type, km) => {
+    if (type === "rest" || !coach) return { details: normalSessionDetails(type, km) };
+    const workout = buildSessionWorkout(type, km, {
+      paces: coach.paces, phase: race?.phase, goalPace: race?.goalPace, goalKm: race?.goal.distanceKm, weekIndex,
+    });
+    return { details: workout.headline, workout };
+  };
 
   const templates: Record<"high" | "medium" | "low", { day: number; type: SessionType; ratio: number }[]> = {
     high: [
@@ -335,8 +442,7 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
     { day: 6, type: "long", ratio: 0.4 },
   ];
   const template = targetKm < 12 ? lowVolumeTemplate : templates[level];
-  const monday = currentMonday(now);
-  const rawSessions: RawSession[] = Array.from({ length: 7 }, (_, day) => {
+  const rawSessions: RawSession[] = raceWeek ?? Array.from({ length: 7 }, (_, day) => {
     const planned = template.find((item) => item.day === day);
     if (!planned) {
       return {
@@ -361,7 +467,7 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
       ...planned,
       km,
       title: titles[planned.type],
-      details: normalSessionDetails(planned.type, km),
+      ...describe(planned.type, km),
     };
   });
   // Move only future template sessions, then recalculate all load limits in date order.
@@ -369,7 +475,7 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
   const today = startOfDay(now);
   for (let index = 0; index < rawSessions.length; index++) {
     const session = rawSessions[index];
-    if (session.type === "rest" || session.date < today || !rainyDays.has(localDateKey(session.date)) || actuals.has(localDateKey(session.date))) continue;
+    if (raceWeek || session.type === "rest" || session.date < today || !rainyDays.has(localDateKey(session.date)) || actuals.has(localDateKey(session.date))) continue;
     const alternatives = rawSessions.map((candidate, i) => ({ candidate, i }))
       .filter(({ candidate }) => candidate.type === "rest" && candidate.date >= today && !rainyDays.has(localDateKey(candidate.date)) && !actuals.has(localDateKey(candidate.date)))
       .sort((a, b) => Math.abs(a.i - index) - Math.abs(b.i - index) || a.i - b.i);
@@ -378,7 +484,14 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
     if (replacement) rawSessions[replacement.i] = { ...session, date: replacement.candidate.date };
     rawSessions[index] = { ...rest, date: session.date, title: "Repos · forte pluie", details: "Forte pluie prévue à Genève : séance déplacée si un autre jour et la charge le permettent." };
   }
-  const sessions = adaptNormalSessions(rawSessions, runs, now, targetKm);
+  const sessions = applyReadiness(adaptNormalSessions(rawSessions, runs, now, targetKm, describe), coach?.readiness, describe)
+    .map((session): PlannedSession => {
+      // Two hard days in a row are avoided even when recovery signals are unavailable.
+      if (!coach?.hardYesterday || !session.isToday || session.status !== "planned" || session.adjustment
+        || (session.type !== "interval" && session.type !== "tempo")) return session;
+      return { ...session, type: "easy", ...describe("easy", session.km), title: "Endurance facile",
+        adjustment: `${session.title} remplacé par un footing : ta sortie d’hier était déjà soutenue.` };
+    });
   const expectedKm = expectedWeekKm(sessions);
   const progressionBaseKm = expectedKm > 0 ? expectedKm : targetKm;
   const growth = level === "high" ? 1.03 : level === "medium" ? 1.04 : 1.05;
@@ -390,10 +503,17 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
     { label: "S+2", km: followingWeekKm },
     { label: "S+3", km: round1(followingWeekKm * 0.9) },
   ];
+  const raceReasons = !race ? [] : raceWeek
+    ? [`Semaine de course (${race.goal.label}) : le volume hors course est réduit de moitié pour arriver reposé.`]
+    : [
+      `Objectif ${race.goal.label} dans ${race.weeksToRace} semaine${race.weeksToRace > 1 ? "s" : ""} — phase ${race.phaseLabel.toLowerCase()}. ${race.focus}`,
+      ...(race.volumeFactor < 1 ? [`Volume de référence ${formatKm(referenceKm)} km × ${race.volumeFactor.toLocaleString("fr-FR")} = ${formatKm(targetKm)} km cette semaine.`] : []),
+    ];
   const reasons = [
+    ...raceReasons,
     `Charge 7 jours : ${formatKm(km7)} km • moyenne 28 jours : ${formatKm(chronicWeek)} km/semaine • ACR ${formatKm(acr)}.`,
     metrics.weeklyRamp.previousWeekKm > 0
-      ? `Référence hebdomadaire : ${formatKm(metrics.weeklyRamp.previousWeekKm)} km la semaine précédente +10 % = ${formatKm(targetKm)} km.`
+      ? `Référence hebdomadaire : ${formatKm(metrics.weeklyRamp.previousWeekKm)} km la semaine précédente +10 % = ${formatKm(target.targetKm)} km.`
       : `Après une semaine sans course, référence de redémarrage limitée à ${formatKm(targetKm)} km.`,
     "L’ACR adapte l’intensité ; le volume normal suit la référence hebdomadaire, avec repos si la fatigue récente le demande.",
     ...(targetKm < 12 ? ["Volume modéré : trois sorties faciles, sans séance intense imposée."] : []),
@@ -403,8 +523,9 @@ export function buildNormalPlan(rows: PlanActivity[], now = new Date(), rainyDay
   return { targetKm, level, sessions, progression, reasons };
 }
 
-export function buildRehabPlan(rows: PlanActivity[], now = new Date(), rainyDays: ReadonlySet<string> = new Set()) {
-  const normalPlan = buildNormalPlan(rows, now, rainyDays);
+export function buildRehabPlan(rows: PlanActivity[], now = new Date(), rainyDays: ReadonlySet<string> = new Set(), coach?: PlanCoach) {
+  // Pain mode keeps recovery signals but never uses race pacing or intensity.
+  const normalPlan = buildNormalPlan(rows, now, rainyDays, coach ? { paces: null, race: null, readiness: coach.readiness } : undefined);
   if (normalPlan.sessions.length === 0) return normalPlan;
 
   const metrics = computeTrainingLoad(rows, now);
@@ -434,13 +555,13 @@ export function buildRehabPlan(rows: PlanActivity[], now = new Date(), rainyDays
       remainingKm = Math.max(0, remainingKm - km);
       remainingSessions--;
       return {
-        ...session, type: "easy", km, ratio: targetKm > 0 ? km / targetKm : 0,
+        ...session, type: "easy", km, ratio: targetKm > 0 ? km / targetKm : 0, workout: undefined,
         title: "Course-marche très facile",
         details: `${formatKm(km)} km maximum, uniquement sans douleur, sur terrain plat. Arrêt si la douleur apparaît ou augmente.`,
       };
     }
     return {
-      ...session, type: "rest", km: 0, ratio: 0, title: "Repos / sans impact",
+      ...session, type: "rest", km: 0, ratio: 0, workout: undefined, title: "Repos / sans impact",
       details: daily.periostitis.ranYesterday
         ? "Au moins une journée sans course après la sortie précédente."
         : "Séance retirée en mode prudent. Les kilomètres ne sont pas reportés sur les autres jours.",

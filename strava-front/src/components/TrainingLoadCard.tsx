@@ -1,6 +1,6 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import "../styles/today.scss";
-import { buildNormalPlan, buildRehabPlan } from "../utils/weeklyPlan";
+import { buildCoach, type Coach } from "../utils/coach";
 import { addDays, localDateKey, toDateKey } from "../utils/dateBuckets";
 import {
   computeTrainingLoad,
@@ -47,6 +47,8 @@ export default function TrainingLoadCard({
   onShinPainChange,
   settingsSaving = false,
   settingsError = null,
+  coach,
+  status,
   children,
 }: {
   rows: Activity[];
@@ -54,6 +56,10 @@ export default function TrainingLoadCard({
   onShinPainChange: (value: boolean) => void;
   settingsSaving?: boolean;
   settingsError?: string | null;
+  /** Shared plan for the week; built from the rows alone when omitted. */
+  coach?: Coach;
+  /** Recovery status shown above the advice. */
+  status?: ReactNode;
   children?: ReactNode;
 }) {
   const metrics = computeTrainingLoad(rows);
@@ -73,7 +79,7 @@ export default function TrainingLoadCard({
   }).length;
   const hasEnoughRecentRuns = recentRunCount >= 3;
 
-  const selectedPlan = hasShinPain ? buildRehabPlan(rows, today) : buildNormalPlan(rows, today);
+  const selectedPlan = (coach ?? buildCoach({ rows, hasShinPain, now: today })).plan;
   const todaySession = selectedPlan.sessions.find((session) => session.isToday);
   const budgetTodayKm = todaySession?.status === "planned" && todaySession.type !== "rest" ? todaySession.km : 0;
   const nextSession = selectedPlan.sessions.find((session) => session.status === "planned" && session.type !== "rest" && !session.isToday);
@@ -108,9 +114,11 @@ export default function TrainingLoadCard({
         </span>
         <div>
           <p className="training-today-eyebrow">Aujourd’hui</p>
-          <h2 id={headingId}>{!hasEnoughRecentRuns ? "Quelques sorties manquent" : canRunToday ? hasShinPain ? "Reprise très facile" : "Une séance est possible" : "Repos course"}</h2>
+          <h2 id={headingId}>{!hasEnoughRecentRuns ? "Quelques sorties manquent" : canRunToday ? hasShinPain ? "Reprise très facile" : coach && todaySession ? `${todaySession.title} · ${formatKm(budgetTodayKm)} km` : "Une séance est possible" : "Repos course"}</h2>
         </div>
       </div>
+
+      {status}
 
       <div className="training-today-advice">
         {!hasEnoughRecentRuns ? (
@@ -120,10 +128,10 @@ export default function TrainingLoadCard({
           </>
         ) : canRunToday ? (
           <>
-            <div className="training-today-budget">
+            {(hasShinPain || !coach) && <div className="training-today-budget">
               <strong>{formatKm(budgetTodayKm)} <span>km</span></strong>
               <span>{hasShinPain ? "Limite conditionnelle de reprise" : "Distance prévue par le plan hebdomadaire"}</span>
-            </div>
+            </div>}
             {hasShinPain ? (
               <p className="training-text">Course-marche sur terrain plat, sans vitesse ni côtes, uniquement si tu peux marcher 30 minutes sans douleur. Arrête si la douleur apparaît.</p>
             ) : children ? children : (
@@ -133,7 +141,8 @@ export default function TrainingLoadCard({
         ) : (
           <>
             <p className="training-text">
-              {hasShinPain && periostitis.ranYesterday
+              {todaySession?.adjustment ? todaySession.adjustment
+                : hasShinPain && periostitis.ranYesterday
                 ? "Tu as couru hier : garde une journée sans course entre deux sorties."
                 : metrics.kmToday > 0
                 ? "Ta sortie est prise en compte. Pas de course supplémentaire conseillée aujourd’hui."

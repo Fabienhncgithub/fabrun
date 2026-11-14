@@ -54,6 +54,25 @@ builder.Services.AddSingleton<IBestEffortsRepository, FileBestEffortsRepository>
 builder.Services.AddSingleton<IAthleteSettingsRepository, FileAthleteSettingsRepository>();
 builder.Services.AddSingleton<IActivityCaloriesRepository, FileActivityCaloriesRepository>();
 builder.Services.AddSingleton<HealthSleepService>();
+builder.Services.AddHttpClient("Garmin", client =>
+{
+    var endpoint = "https://personal.connectapi.garmin.com/";
+    // Optional local TLS 1.3 relay for macOS development (never enabled in production).
+    if (builder.Environment.IsDevelopment()
+        && builder.Configuration["Garmin:DevelopmentRelay"] is { } relay)
+    {
+        if (!Uri.TryCreate(relay, UriKind.Absolute, out var uri) || !uri.IsLoopback || uri.Scheme != "http")
+            throw new InvalidOperationException("Garmin development relay must be an HTTP loopback address.");
+        endpoint = relay;
+    }
+    client.BaseAddress = new Uri(endpoint);
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = false,
+});
+builder.Services.AddSingleton<GarminService>();
 builder.Services.AddSingleton<BestEffortsStoreService>();
 builder.Services.AddSingleton<BestEffortsService>();
 builder.Services.AddSingleton<AthleteSettingsService>();
@@ -138,6 +157,8 @@ builder.Services.AddRateLimiter(options =>
         FixedWindow(context, permitLimit: 120, window: TimeSpan.FromMinutes(1)));
     options.AddPolicy("login", context =>
         FixedWindow(context, permitLimit: 5, window: TimeSpan.FromMinutes(5)));
+    options.AddPolicy("garmin-history", context =>
+        FixedWindow(context, permitLimit: 60, window: TimeSpan.FromMinutes(5)));
     options.AddPolicy("strava-heavy", context =>
         FixedWindow(context, permitLimit: 6, window: TimeSpan.FromMinutes(5)));
     options.AddPolicy("strava-analysis", context =>
@@ -223,9 +244,9 @@ app.Use(async (context, next) =>
             cancellationToken: context.RequestAborted);
     }
 });
+app.UseCors();
 app.UseRateLimiter();
 app.UseRequestTimeouts();
-app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 if (app.Environment.IsDevelopment())
