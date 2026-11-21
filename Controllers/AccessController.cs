@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
-using FabRun.Api.Abstractions.External;
 using FabRun.Api.Security;
 
 namespace FabRun.Api.Controllers;
@@ -20,23 +19,17 @@ public sealed class AccessController : ControllerBase
     private readonly IHostEnvironment _environment;
     private readonly ILogger<AccessController> _logger;
     private readonly IAntiforgery _antiforgery;
-    private readonly IStravaClient _strava;
-    private readonly StravaTokenService _tokenService;
 
     public AccessController(
         IConfiguration configuration,
         IHostEnvironment environment,
         ILogger<AccessController> logger,
-        IAntiforgery antiforgery,
-        IStravaClient strava,
-        StravaTokenService tokenService)
+        IAntiforgery antiforgery)
     {
         _configuration = configuration;
         _environment = environment;
         _logger = logger;
         _antiforgery = antiforgery;
-        _strava = strava;
-        _tokenService = tokenService;
     }
 
     [AllowAnonymous]
@@ -115,32 +108,9 @@ public sealed class AccessController : ControllerBase
     }
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout()
     {
-        try
-        {
-            // Resolving (rather than just peeking at the raw cookie) also
-            // refreshes first if needed, so DeauthorizeAsync gets a token
-            // Strava is likely to still accept.
-            var accessToken = await _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(accessToken))
-            {
-                await _strava.DeauthorizeAsync(accessToken, cancellationToken);
-            }
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            // A Strava outage must not prevent the local FabRun session and
-            // cookies from being closed.
-            _logger.LogWarning(ex, "Unable to revoke the Strava token during logout.");
-        }
-
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        // Clears the in-memory "last known good" bundle too - otherwise a
-        // fresh login right after logout would silently resurrect the old
-        // (deauthorized) connection instead of showing the reconnect gate.
-        _tokenService.Clear(HttpContext);
-        Response.Cookies.Delete(SecurityCookies.OAuthState, SecureCookieOptions());
         Response.Cookies.Delete(SecurityCookies.Csrf, SecureCookieOptions());
         return Ok(new { authenticated = false });
     }

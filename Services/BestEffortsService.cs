@@ -5,197 +5,80 @@ namespace FabRun.Api.Services;
 
 public class BestEffortsService
 {
-    private readonly IStravaClient _strava;
+    private readonly IActivityStreams _streams;
 
     private static readonly double[] TargetsKm = { 1.0, 5.0, 10.0, 21.097, 42.195 };
 
-    public BestEffortsService(IStravaClient strava)
+    public BestEffortsService(IActivityStreams streams)
     {
-        _strava = strava;
+        _streams = streams;
     }
 
+    /// <summary>
+    /// Best 1K/5K/10K/half/marathon over the window. The most recent runs are scanned
+    /// second by second from their FIT file; every run also counts as a whole-activity effort.
+    /// </summary>
     public async Task<List<BestEffortComputed>> ComputeBestEffortsAsync(
-        string token,
+        IEnumerable<Activity> activities,
         int daysBack = 365,
         int maxActivitiesForStreams = 40,
         CancellationToken cancellationToken = default)
     {
-        var activities = await _strava.FetchActivitiesAsync(token, daysBack, cancellationToken);
-        bool IsRun(Activity a) =>
-            a != null &&
-            !string.IsNullOrWhiteSpace(a.sport_type) &&
-            (a.sport_type.Equals("Run", StringComparison.OrdinalIgnoreCase) ||
-             a.sport_type.Equals("TrailRun", StringComparison.OrdinalIgnoreCase) ||
-             a.sport_type.Equals("VirtualRun", StringComparison.OrdinalIgnoreCase));
-
-        var runs = activities.Where(IsRun)
-            .OrderByDescending(a => DateTime.TryParse(a.start_date_local, out var parsed) ? parsed : DateTime.MinValue)
-            .ToList();
-        var detailedRuns = runs
-            .Take(Math.Clamp(maxActivitiesForStreams, 0, 40))
+        var since = DateTime.Today.AddDays(-daysBack);
+        var runs = activities
+            .Where(ShoeService.IsRun)
+            .Select(a => (Activity: a, Ok: DateTime.TryParse(a.start_date_local, out var d), Date: d))
+            .Where(x => x.Ok && x.Date >= since)
+            .OrderByDescending(x => x.Date)
             .ToList();
 
         var bestByTarget = new Dictionary<double, BestEffortComputed>();
-        int streamsRemaining = detailedRuns.Count;
-
-        foreach (var act in detailedRuns)
+        void Offer(BestEffortComputed c)
         {
-            // A best effort with no trustworthy date can't be placed in the
-            // recency logic PredictionsController relies on - skip the
-            // activity rather than let a malformed timestamp crash the loop
-            // or silently attribute the PB to DateTime.MinValue.
-            if (!DateTime.TryParse(act.start_date_local, out var actDate)) continue;
-            var candidates = new List<BestEffortComputed>();
+            if (!bestByTarget.TryGetValue(c.distanceKm, out var current) || c.timeSec < current.timeSec)
+                bestByTarget[c.distanceKm] = c;
+        }
 
-            if (streamsRemaining > 0)
+        // Downloads are capped for latency and Garmin's quota.
+        foreach (var (act, _, actDate) in runs.Take(Math.Clamp(maxActivitiesForStreams, 0, 40)))
+        {
+            var stream = await _streams.DistanceStreamAsync(act.id, cancellationToken);
+            if (stream is null || stream.Distance.Length != stream.Time.Length || stream.Distance.Length < 2) continue;
+            foreach (var t in TargetsKm)
             {
-                var streams = await _strava.FetchActivityStreamsAsync(token, act.id, cancellationToken);
-                if (streams?.distance?.data != null && streams.time?.data != null)
-                {
-                    var dist = streams.distance.data.Select(x => (double)x).ToArray();
-                    var time = streams.time.data.Select(x => (double)x).ToArray();
-                    if (dist.Length == time.Length && dist.Length >= 2)
-                    {
-                        foreach (var t in TargetsKm)
-                        {
-                            var best = BestFromStreams(dist, time, t * 1000.0);
-                            if (best != null)
-                            {
-                                candidates.Add(new BestEffortComputed(
-                                    distanceKm: t,
-                                    timeSec: (int)Math.Round(best.Value.timeSec),
-                                    activityId: act.id,
-                                    activityName: act.name ?? $"{t:0.#}K run",
-                                    dateLocal: actDate,
-                                    method: "streams",
-                                    startKm: Math.Round(best.Value.startKm, 3),
-                                    endKm: Math.Round(best.Value.endKm, 3)
-                                ));
-                            }
-                        }
-                    }
-                }
-                streamsRemaining--;
-            }
-
-            if (candidates.Count == 0)
-            {
-                var detail = await _strava.FetchActivityDetailAsync(token, act.id, cancellationToken);
-                // detail.start_date_local describes the same activity as
-                // act.start_date_local (already validated above), so if
-                // Strava ever returns a malformed detail timestamp, fall
-                // back to the summary activity's date instead of crashing.
-                var detailDate = DateTime.TryParse(detail?.start_date_local, out var parsedDetailDate)
-                    ? parsedDetailDate
-                    : actDate;
-                if (detail?.splits_standard != null && detail.splits_standard.Count > 0)
-                {
-                    foreach (var t in TargetsKm)
-                    {
-                        var splitBest = BestFromSplits(detail.splits_standard, t * 1000.0);
-                        if (splitBest != null)
-                        {
-                            candidates.Add(new BestEffortComputed(
-                                distanceKm: t,
-                                timeSec: splitBest.Value.timeSec,
-                                activityId: act.id,
-                                activityName: detail.name ?? $"{t:0.#}K run",
-                                dateLocal: detailDate,
-                                method: "splits",
-                                startKm: Math.Round(splitBest.Value.startKm, 3),
-                                endKm: Math.Round(splitBest.Value.endKm, 3)
-                            ));
-                        }
-                    }
-                }
-                else if (detail != null)
-                {
-                    foreach (var t in TargetsKm)
-                    {
-                        var tol = 0.03;
-                        var km = detail.distance / 1000.0;
-                        if (km <= 1.0 && t > 1.0) continue;
-                        if (Math.Abs(km - t) / t <= tol)
-                        {
-                            var timeSec = detail.elapsed_time > 0 ? detail.elapsed_time : detail.moving_time;
-                            candidates.Add(new BestEffortComputed(
-                                distanceKm: t,
-                                timeSec: timeSec,
-                                activityId: act.id,
-                                activityName: detail.name ?? $"{t:0.#}K run",
-                                dateLocal: detailDate,
-                                method: "activity",
-                                startKm: 0.0,
-                                endKm: Math.Round(km, 3)
-                            ));
-                        }
-                    }
-                }
-            }
-
-            if (candidates.Count == 0)
-            {
-                foreach (var t in TargetsKm)
-                {
-                    var tol = 0.03;
-                    var km = act.distance / 1000.0;
-                    if (km <= 1.0 && t > 1.0) continue;
-                    if (Math.Abs(km - t) / t <= tol)
-                    {
-                        candidates.Add(new BestEffortComputed(
-                            distanceKm: t,
-                            timeSec: (int)Math.Round((double)act.moving_time),
-                            activityId: act.id,
-                            activityName: act.name ?? $"{t:0.#}K run",
-                            dateLocal: actDate,
-                            method: "activity",
-                            startKm: 0.0,
-                            endKm: Math.Round(km, 3)
-                        ));
-                    }
-                }
-            }
-
-            foreach (var c in candidates)
-            {
-                if (!bestByTarget.TryGetValue(c.distanceKm, out var current) || c.timeSec < current.timeSec)
-                {
-                    bestByTarget[c.distanceKm] = c;
-                }
+                var best = BestFromStreams(stream.Distance, stream.Time, t * 1000.0);
+                if (best is null) continue;
+                Offer(new BestEffortComputed(
+                    distanceKm: t,
+                    timeSec: (int)Math.Round(best.Value.timeSec),
+                    activityId: act.id,
+                    activityName: string.IsNullOrWhiteSpace(act.name) ? $"{t:0.#}K run" : act.name,
+                    dateLocal: actDate,
+                    method: "streams",
+                    startKm: Math.Round(best.Value.startKm, 3),
+                    endKm: Math.Round(best.Value.endKm, 3)));
             }
         }
 
-        // Stream/detail calls are deliberately capped for Strava quota and
-        // latency, but whole-activity fallbacks are already present in the
-        // activities listing. Scan the complete requested period so an older
-        // race is not invisible merely because more than 40 runs followed it.
-        foreach (var act in runs)
+        // Whole-activity efforts cost nothing, so the full window is scanned:
+        // an older race stays visible even when more than 40 runs followed it.
+        foreach (var (act, _, actDate) in runs)
         {
-            if (act.moving_time <= 0 || !DateTime.TryParse(act.start_date_local, out var actDate))
-            {
-                continue;
-            }
-
+            if (act.moving_time <= 0) continue;
             var km = act.distance / 1000.0;
             foreach (var targetKm in TargetsKm)
             {
                 if (km <= 1.0 && targetKm > 1.0) continue;
                 if (Math.Abs(km - targetKm) / targetKm > 0.03) continue;
-
-                var candidate = new BestEffortComputed(
+                Offer(new BestEffortComputed(
                     distanceKm: targetKm,
                     timeSec: act.moving_time,
                     activityId: act.id,
-                    activityName: act.name ?? $"{targetKm:0.#}K run",
+                    activityName: string.IsNullOrWhiteSpace(act.name) ? $"{targetKm:0.#}K run" : act.name,
                     dateLocal: actDate,
                     method: "activity",
                     startKm: 0.0,
-                    endKm: Math.Round(km, 3));
-
-                if (!bestByTarget.TryGetValue(targetKm, out var current) || candidate.timeSec < current.timeSec)
-                {
-                    bestByTarget[targetKm] = candidate;
-                }
+                    endKm: Math.Round(km, 3)));
             }
         }
 
@@ -273,41 +156,5 @@ public class BestEffortsService
         var dt = time[idx] - time[idx - 1];
         var dd = dist[idx] - dist[idx - 1];
         return dt >= 120 && dd < 10;
-    }
-
-    internal static (int timeSec, double startKm, double endKm)? BestFromSplits(
-        List<StravaSplit> splits,
-        double targetMeters)
-    {
-        if (splits.Count == 0) return null;
-
-        var kmSplits = splits
-            .Where(s => s.distance >= 950 && s.distance <= 1050)
-            .ToList();
-
-        if (kmSplits.Count == 0) return null;
-
-        int needed = (int)Math.Round(targetMeters / 1000.0);
-        if (needed <= 0 || kmSplits.Count < needed) return null;
-
-        int best = int.MaxValue;
-        int bestStart = 0;
-        for (int i = 0; i <= kmSplits.Count - needed; i++)
-        {
-            int sum = 0;
-            for (int j = 0; j < needed; j++)
-            {
-                var s = kmSplits[i + j];
-                sum += s.elapsed_time > 0 ? s.elapsed_time : s.moving_time;
-            }
-            if (sum < best)
-            {
-                best = sum;
-                bestStart = i;
-            }
-        }
-
-        if (best == int.MaxValue) return null;
-        return (best, bestStart + 1, bestStart + needed);
     }
 }

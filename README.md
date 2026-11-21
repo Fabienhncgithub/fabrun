@@ -2,14 +2,14 @@
 
 [![Checks](https://github.com/Fabienhncgithub/fabrun/actions/workflows/security.yml/badge.svg)](https://github.com/Fabienhncgithub/fabrun/actions/workflows/security.yml)
 
-FabRun est un tableau de bord personnel pour analyser ses activités Strava, suivre sa charge d’entraînement et estimer ses performances en course à pied.
+FabRun est un tableau de bord personnel pour analyser ses activités Garmin, suivre sa charge d’entraînement et estimer ses performances en course à pied.
 
-Le projet réunit une API ASP.NET Core et une interface React. L’authentification Strava utilise OAuth 2.0 et les jetons restent dans des cookies sécurisés non accessibles au JavaScript du navigateur.
+Le projet réunit une API ASP.NET Core et une interface React. Les données viennent de la Garmin Connect Personal API ; la clé reste sur le serveur et n’est jamais envoyée au navigateur.
 
 ## Choix et limites
 
 Le projet répond à mon besoin de réunir mes activités et mes repères
-d’entraînement dans une seule interface. L’API isole les appels Strava des
+d’entraînement dans une seule interface. L’API isole les appels Garmin des
 calculs ; les préférences et résultats calculés restent sur le serveur.
 
 Le déploiement actuel vise un usage personnel sur une seule instance. Le
@@ -17,30 +17,32 @@ stockage JSON local et ses verrous ne constituent pas un stockage distribué.
 Une version multi-instance demanderait une base partagée et une coordination
 des accès. Les prévisions de course et recommandations sont des estimations.
 
-Les données Strava sont privées : le dépôt contient le code, pas un compte de
-démonstration donnant accès aux activités personnelles.
+Les données d’entraînement sont privées : le dépôt contient le code, pas un
+compte de démonstration donnant accès aux activités personnelles.
 
 ## Fonctionnalités
 
-- synchronisation du profil et des activités Strava ;
+- synchronisation des activités Garmin, complétées par l’historique importé
+  depuis Strava pour les séances antérieures à la montre ;
 - indicateurs de volume, allure, fréquence cardiaque et dénivelé ;
 - comparaison des statistiques annuelles ;
 - suivi de la charge d’entraînement et de la récupération ;
 - calendrier annuel des jours courus, consultable sur l’année en cours et la précédente ;
 - estimation des performances sur 5 km, 10 km, semi-marathon et marathon ;
-- calcul des meilleurs efforts à partir des flux et segments Strava ;
+- calcul des meilleurs efforts à partir des fichiers FIT originaux de la montre ;
 - objectifs de course multiples avec date, compte à rebours et temps estimé ;
 - recommandations pour la prochaine séance ;
 - plan hebdomadaire adaptatif : kilomètres réalisés importés, volume restant
   redistribué sans rattrapage brutal et reprise périostite avec jours de repos ;
 - export des séances au format TCX v2 pour les appareils et applications compatibles ;
 - suivi facultatif du sommeil par import HealthKit ;
-- suivi précis de chaque paire de chaussures à partir de l’équipement associé
-  aux activités Strava, avec seuil de remplacement personnalisé, allure d’usure
-  récente et date de remplacement projetée ;
+- suivi précis de chaque paire de chaussures : paire par défaut attribuée aux
+  nouvelles courses, changement par sortie, seuil de remplacement personnalisé,
+  allure d’usure récente et date de remplacement projetée ;
+- bilan ski par saison : distance, journées, vitesse max et dénivelé ;
 - recherche et filtrage des activités, identification de la paire utilisée et
   export CSV de la vue courante ;
-- poids Strava utilisé automatiquement pour les estimations de dépense énergétique ;
+- poids Garmin utilisé automatiquement pour les estimations de dépense énergétique ;
 - préférences athlète, objectifs et réglages des chaussures conservés côté serveur ;
 - thème clair/sombre mémorisé et interface installable sur l’écran d’accueil ;
 - navigation visuelle vers les fonctions principales et aides de lecture
@@ -49,13 +51,12 @@ démonstration donnant accès aux activités personnelles.
 ## Architecture
 
 ```text
-strava-front/                 Interface React et TypeScript
+web/                 Interface React et TypeScript
   src/components/             Cartes, navigation et en-tête
   src/styles/                 Styles répartis par fonction
 Controllers/                 Endpoints HTTP de l’API
 Services/                    Calculs et logique métier
-Infrastructure/External/    Communication avec Strava
-Infrastructure/Persistence/ Stockage local des données calculées
+Infrastructure/Persistence/ Stockage local : préférences, chaussures, archive
 Models/                      Modèles de données
 Security/                    Noms et configuration des cookies
 FabRun.Api.Tests/            Tests unitaires et d’intégration
@@ -69,7 +70,7 @@ Une description plus détaillée est disponible dans [docs/architecture-schema.m
 
 - .NET SDK 10 ;
 - Node.js 22 et npm ;
-- une application créée dans les paramètres API Strava ;
+- une clé Garmin Connect Personal API ;
 - des certificats HTTPS locaux pour le développement.
 
 ## Configuration locale
@@ -79,21 +80,13 @@ Une description plus détaillée est disponible dans [docs/architecture-schema.m
 Les informations sensibles peuvent être enregistrées avec les secrets utilisateur .NET :
 
 ```bash
-dotnet user-secrets set STRAVA_CLIENT_ID "votre-identifiant"
-dotnet user-secrets set STRAVA_CLIENT_SECRET "votre-secret"
+dotnet user-secrets set GARMIN_PERSONAL_API_KEY "votre-cle"
 dotnet user-secrets set FABRUN_ACCESS_PASSWORD "un-mot-de-passe-long-et-unique"
 dotnet user-secrets set FABRUN_SESSION_VERSION "une-valeur-aleatoire-distincte"
-dotnet user-secrets set BASE_URL "https://localhost:3001"
 dotnet user-secrets set WEB_ORIGIN "https://localhost:5173"
 ```
 
 La configuration HTTPS et les origines autorisées pour le développement se trouvent dans `appsettings.Development.json`.
-
-Dans la configuration de l’application Strava, le callback local doit correspondre à :
-
-```text
-https://localhost:3001/oauth/callback
-```
 
 Lancer ensuite l’API :
 
@@ -105,7 +98,7 @@ L’API écoute par défaut sur `https://localhost:3001`.
 
 ### Interface
 
-Créer ou adapter `strava-front/.env` :
+Créer ou adapter `web/.env` :
 
 ```dotenv
 VITE_API_BASE=https://localhost:3001
@@ -114,7 +107,7 @@ VITE_API_BASE=https://localhost:3001
 Installer les dépendances et démarrer le serveur de développement :
 
 ```bash
-cd strava-front
+cd web
 npm ci
 npm run dev
 ```
@@ -123,12 +116,12 @@ L’interface est alors disponible sur `https://localhost:5173`.
 
 ## Authentification
 
-L’accès se déroule en deux étapes :
-
-1. saisie du mot de passe privé FabRun ;
-2. autorisation de l’application auprès de Strava.
-
-La session FabRun et le jeton Strava sont enregistrés dans des cookies `HttpOnly`, `Secure` et `SameSite=Lax`. Le cookie Strava contient le jeton d’accès et le jeton de rafraîchissement, chiffrés et authentifiés avec les clés Data Protection de l’API ; `StravaTokenService` renouvelle le jeton d’accès automatiquement avant son expiration, donc la connexion Strava reste active tant que l’app est rouverte au moins une fois toutes les ~90 jours, sans repasser par l’écran d’autorisation Strava. Les endpoints métier nécessitent une session FabRun valide et les requêtes qui modifient des données sont protégées contre les attaques CSRF.
+L’accès se fait par le mot de passe privé FabRun. La session est enregistrée
+dans un cookie `HttpOnly`, `Secure` et `SameSite=Lax`. Aucune autorisation
+tierce n’est demandée au navigateur : l’API appelle Garmin avec la clé
+personnelle du serveur. Les endpoints métier nécessitent une session FabRun
+valide et les requêtes qui modifient des données sont protégées contre les
+attaques CSRF.
 
 ## Endpoints principaux
 
@@ -138,8 +131,6 @@ La session FabRun et le jeton Strava sont enregistrés dans des cookies `HttpOnl
 | `GET` | `/access/csrf` | Création d’un jeton CSRF |
 | `POST` | `/access/login` | Ouverture de la session privée |
 | `POST` | `/access/logout` | Fermeture de la session |
-| `GET` | `/auth/login` | Début de l’autorisation Strava |
-| `GET` | `/auth/status` | État de la connexion Strava |
 | `GET` | `/api/dashboard` | Données principales du tableau de bord |
 | `GET` | `/api/activities` | Activités récentes |
 | `GET` | `/api/kpis` | Indicateurs d’entraînement |
@@ -149,10 +140,37 @@ La session FabRun et le jeton Strava sont enregistrés dans des cookies `HttpOnl
 | `GET` | `/api/health/sleep/summary` | Synthèse des nuits enregistrées |
 | `GET` | `/api/settings` | Préférences athlète (périostite, objectifs et chaussures) |
 | `PUT` | `/api/settings` | Mise à jour des préférences athlète |
+| `POST` | `/api/shoes` | Ajout d’une paire |
+| `PUT` | `/api/shoes/default` | Paire par défaut des nouvelles courses |
+| `PUT` | `/api/shoes/{id}/retired` | Retrait ou remise en service d’une paire |
+| `PUT` | `/api/activities/{id}/shoe` | Chaussure d’une course |
 
 Le bouton de rafraîchissement du dashboard contourne volontairement le cache
-court de l’API pour relire Strava. Les chargements automatiques conservent ce
-cache afin de limiter la latence et la consommation du quota Strava.
+de 15 minutes de l’API pour relire Garmin. Les chargements automatiques
+conservent ce cache afin de limiter la latence et la consommation du quota Garmin.
+
+## Données Garmin et historique Strava
+
+Toutes les activités viennent de Garmin Connect (`activitylist-service`), sur
+tout l’historique de la montre. Les types Garmin sont convertis vers les noms
+utilisés par les calculs (`running` → `Run`, `strength_training` →
+`WeightTraining`, `resort_skiing` → `AlpineSki`…). Les meilleurs efforts lisent
+les fichiers FIT originaux (`download-service`) des 40 courses les plus récentes.
+
+Les séances antérieures à la première activité Garmin viennent de
+`Data/strava-archive.json`, un import unique de l’ancien compte Strava. Une
+séance de l’archive n’est jamais affichée si Garmin couvre déjà cette période,
+ce qui évite les doublons. Cette archive porte aussi l’identifiant sous lequel
+les préférences, le sommeil et les meilleurs efforts sont déjà enregistrés.
+
+L’API Garmin n’expose pas l’équipement : les chaussures et la paire de chaque
+course sont gérées par FabRun dans `Data/shoes.json`. Une nouvelle course reçoit
+la paire par défaut, et ce choix est enregistré : changer la paire par défaut
+ne modifie pas les courses passées. Le kilométrage d’une paire est son
+kilométrage de départ plus celui des courses qui lui sont attribuées.
+
+En production, copier `Data/strava-archive.json` et `Data/shoes.json` dans le
+volume `fabrun-data` (voir [deploy/README.md](deploy/README.md)).
 
 ## Tests et vérifications
 
@@ -165,7 +183,7 @@ dotnet test FabRun.Api.sln
 Vérifier l’interface :
 
 ```bash
-cd strava-front
+cd web
 npm test
 npm run lint
 npm run build
@@ -188,9 +206,9 @@ Les fichiers de données, clés privées, certificats locaux et fichiers d’env
 
 ## Coach d’entraînement
 
-La page **Entraînement** croise Strava, Garmin, l’objectif de course et la météo
+La page **Entraînement** croise les activités et la récupération Garmin, l’objectif de course et la météo
 pour dire quoi courir, à quelle allure et quand. Tout est calculé dans le
-navigateur ([strava-front/src/utils/coach.ts](strava-front/src/utils/coach.ts)),
+navigateur ([web/src/utils/coach.ts](web/src/utils/coach.ts)),
 une seule fois pour la carte du jour et le plan de la semaine.
 
 - **Allures personnalisées** : zones endurance, sortie longue, seuil, fractionné
@@ -220,11 +238,10 @@ allures, l’intensité et la préparation spécifique.
 
 ## Garmin Connect Personal API
 
-Garmin complète Strava dans la page **Récupération** : sommeil mesuré sur 30 jours,
+Garmin alimente aussi la page **Récupération** : sommeil mesuré sur 30 jours,
 score et phases de sommeil, HRV nocturne et moyenne hebdomadaire, fréquence
 cardiaque au repos, stress, Body Battery, calories brûlées et poids. Les mesures
-absentes restent indisponibles. Les activités continuent à provenir de Strava,
-sans doublons.
+absentes restent indisponibles.
 
 Garmin est la source de référence pour l’énergie :
 
@@ -232,11 +249,10 @@ Garmin est la source de référence pour l’énergie :
   issus des résumés quotidiens Garmin, sur toute la journée. Elles sont affichées
   dans un tableau avec la moyenne par jour. La journée en cours est partielle et
   exclue des moyennes.
-- **Calories par activité** : valeur fournie par la montre via Strava. FabRun ne
+- **Calories par activité** : valeur fournie par la montre Garmin. FabRun ne
   fait jamais la moyenne de deux sources. Son estimation (Keytel ou MET) ne sert
   que lorsqu’aucune valeur mesurée n’existe.
-- **Poids** : la dernière pesée Garmin (sur 180 jours) remplace le poids du
-  profil Strava dans ces estimations. L’API Garmin renvoie le poids en grammes,
+- **Poids** : la dernière pesée Garmin (sur 180 jours) sert à ces estimations. L’API Garmin renvoie le poids en grammes,
   bien que le Swagger indique des kilogrammes : les deux unités sont acceptées.
 
 1. Créer une clé sur https://connect.garmin.com/app/settings/personalApiToken.
@@ -255,7 +271,7 @@ une application destinée à plusieurs utilisateurs nécessite l'offre Business.
 
 `GET /api/garmin/status` indique la configuration et le dernier résultat en mémoire.
 `POST /api/garmin/activities` renvoie la charge et les effets aérobie et anaérobie
-des 365 derniers jours, rapprochés des activités Strava dans la page Activités.
+des 365 derniers jours, affichés avec les séances de la page Activités.
 `POST /api/garmin/sync` synchronise les données avec la protection de session et
 CSRF existante. Un cache de 15 minutes limite les appels. Les données Garmin ne
 sont pas conservées sur disque : après un redémarrage, resynchroniser. Elles sont
@@ -281,8 +297,5 @@ Dans **Activités**, le bouton **Charger les bilans Garmin** récupère jusqu’
 1 089 séances des 365 derniers jours, avec un cache de 15 minutes. Le panneau
 **Bilan Garmin** affiche la charge et les effets aérobie/anaérobie sur 5.
 `POST /api/garmin/activities` expose ces résumés, avec les protections de session
-et CSRF habituelles. Aucun doublon d’activité n’est créé : les listes Strava
-restent la référence. Le rapprochement exige un même sport, un départ à moins
-de 2 minutes, une distance à moins de 3 % (tolérance minimale 100 m) et une durée
-à moins de 10 % (tolérance minimale 60 s). Les cas ambigus ne sont pas associés.
-Les effets absents restent indisponibles ; la valeur zéro est conservée.
+et CSRF habituelles. Les séances et leurs bilans partagent le même identifiant
+Garmin. Les effets absents restent indisponibles ; la valeur zéro est conservée.

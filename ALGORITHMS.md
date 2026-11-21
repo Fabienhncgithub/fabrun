@@ -3,18 +3,20 @@
 Ce document décrit, de manière simple, les algorithmes utilisés dans chaque module visible du dashboard FabRun. Objectif : comprendre d’où viennent les chiffres, quelles hypothèses sont faites, et leurs limites.
 
 ## Sources de données
-- **Strava** : activités, profil, chaussures (gears).
+- **Garmin Connect** : activités, fichiers FIT, récupération et poids.
+- **Archive Strava** (`Data/strava-archive.json`) : séances antérieures à la montre Garmin, importées une fois.
+- **FabRun** (`Data/shoes.json`) : chaussures et paire de chaque course.
 - **Apple Health / HealthKit** : sommeil (via l’API FabRun).
 
 ## Modules
 
 ### 1) KPIs Course (module “KPIs”)
 **Fichiers**
-- `Services/StravaAnalytics.cs` (`ComputeKpis`)
-- `strava-front/src/components/KpisCard.tsx`
+- `Services/ActivityAnalytics.cs` (`ComputeKpis`)
+- `web/src/components/KpisCard.tsx`
 
 **Données utilisées**
-- Activités Strava de type : `Run`, `TrailRun`, `VirtualRun`.
+- Activités de type : `Run`, `TrailRun`, `VirtualRun` (types Garmin `running`, `trail_running`, `treadmill_running`…).
 - Pour “Depuis toujours” : **toutes** les activités disponibles.
 - Pour “Année en cours” / “Année précédente” : activités dont la date est dans l’année civile correspondante.
 
@@ -37,12 +39,12 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 
 ### 2) Charge d’entraînement (module “Training Load”)
 **Fichiers**
-- `strava-front/src/utils/trainingLoad.ts` (`computeTrainingLoad` — seule implémentation de l’ACR dans l’app)
-- `strava-front/src/components/TrainingLoadCard.tsx`
-- `strava-front/src/components/KpisCard.tsx` (tuile “Charge actuelle”, même calcul)
+- `web/src/utils/trainingLoad.ts` (`computeTrainingLoad` — seule implémentation de l’ACR dans l’app)
+- `web/src/components/TrainingLoadCard.tsx`
+- `web/src/components/KpisCard.tsx` (tuile “Charge actuelle”, même calcul)
 
 **Données utilisées**
-- Activités Strava des 28 derniers jours, **runs uniquement**.
+- Activités des 28 derniers jours, **runs uniquement**.
 
 **Calculs**
 - On construit une fenêtre de 28 jours (jour par jour).
@@ -67,7 +69,7 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 
 ### 3) Évolution de forme (module “Form Trend”)
 **Fichiers**
-- `strava-front/src/components/FormTrendCard.tsx`
+- `web/src/components/FormTrendCard.tsx`
 
 **Données utilisées**
 - Runs comparables des 12 derniers mois (4-20 km, 25-110 min) pour les
@@ -97,15 +99,15 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 
 ### 4) Tableau d’activités (module “Activities Table”)
 **Fichiers**
-- `strava-front/src/components/ActivitiesTable.tsx`
+- `web/src/components/ActivitiesTable.tsx`
 
 **Affichages**
-- Distance, allure (pace), durée, calories et chaussure associée par Strava.
+- Distance, allure (pace), durée, calories et chaussure associée, modifiable pour chaque course.
 - Recherche par nom, sport ou chaussure, filtre par sport et export CSV de la
   vue filtrée.
 
 **Calories**
-- Si Strava fournit `calories` ou `kilojoules`, on affiche la valeur.
+- Si la montre fournit `calories`, on affiche la valeur.
 - Sinon : estimation via MET (intensité moyenne standard).
   - MET basé sur sport + vitesse moyenne pour la course.
   - Calories actives ≈ `(MET - 1) * poids(kg) * durée(h)`.
@@ -115,19 +117,19 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 
 **Limites**
 - MET = approximation ; ne remplace pas un capteur cardio.
-- Le poids vient du profil Strava. S’il n’est pas renseigné, l’estimation
+- Le poids vient de la dernière pesée Garmin. S’il n’est pas renseigné, l’estimation
   n’est pas affichée.
 
 ---
 
 ### 5) Chaussures (module “Gears / Shoes”)
 **Fichiers**
-- `strava-front/src/components/ShoeUsageCard.tsx`
+- `web/src/components/ShoeUsageCard.tsx`
 
 **Données utilisées**
-- `distance` (mètres) ou `converted_distance` (km) de Strava.
-- `gear_id` de chaque activité Strava pour affecter les kilomètres récents à
-  la bonne paire.
+- Kilométrage d’une paire = kilométrage de départ saisi + courses attribuées.
+- `gear_id` de chaque course : la paire par défaut au moment de sa première
+  synchronisation, ou celle choisie dans Activités.
 - Activités de course des 28 derniers jours pour mesurer le rythme propre à
   chaque paire.
 
@@ -147,8 +149,8 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 
 **Limites**
 - Détection de marque basée sur le texte du nom.
-- Une activité sans chaussure renseignée dans Strava ne peut pas être affectée
-  à une paire.
+- Une course reçoit la paire par défaut : une sortie faite avec une autre
+  paire doit être corrigée à la main dans Activités.
 - L’échéance suppose que le rythme des 28 derniers jours reste stable.
 - Le kilométrage est un indicateur : l’état physique et les sensations restent
   prioritaires et FabRun ne pose pas de diagnostic médical.
@@ -159,7 +161,7 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 **Fichiers**
 - `Services/HealthSleepService.cs`
 - `Controllers/HealthSleepController.cs`
-- `strava-front/src/components/FormTrendCard.tsx`
+- `web/src/components/FormTrendCard.tsx`
 
 **Données utilisées**
 - Sessions envoyées via `POST /api/health/sleep` (import HealthKit).
@@ -188,23 +190,23 @@ Ce document décrit, de manière simple, les algorithmes utilisés dans chaque m
 **Fichiers**
 - `Services/BestEffortsService.cs`
 - `Controllers/PredictionsController.cs`
-- `strava-front/src/components/PerformancePredictionsCard.tsx`
+- `web/src/components/PerformancePredictionsCard.tsx`
 
 **Objectif**
-Estimer 5K / 10K / Semi / Marathon à partir des meilleurs efforts disponibles dans les sorties Strava, avec un score de confiance.
+Estimer 5K / 10K / Semi / Marathon à partir des meilleurs efforts disponibles dans les sorties, avec un score de confiance.
 
 **Best Efforts — stratégie**
 Ordre des méthodes :
-1. **Streams (distance + time)** : calcul précis par fenêtre glissante.
-2. **Splits 1 km** : somme minimale de splits consécutifs.
-3. **Fallback activité entière** : si la distance est à ±3% de la cible.
+1. **Streams (distance + time)** : lus dans le fichier FIT original de la
+   montre, calcul précis par fenêtre glissante.
+2. **Fallback activité entière** : si la distance est à ±3% de la cible.
 
-Les streams et détails sont interrogés pour au plus 40 sorties récentes afin
-de respecter le quota Strava. Le fallback « activité entière », qui ne coûte
+Les fichiers FIT sont téléchargés pour au plus 40 sorties récentes afin
+de respecter le quota Garmin. Le fallback « activité entière », qui ne coûte
 aucune requête supplémentaire, parcourt en revanche toute la fenêtre de
 365 jours : une course plus ancienne n’est donc pas masquée par 40 sorties
 récentes. Les meilleurs efforts retenus sont renvoyés par l’API et affichés
-avec leur allure, leur méthode et un lien vers l’activité Strava.
+avec leur allure, leur méthode et un lien vers l’activité Garmin Connect.
 
 **Distances cibles**
 - 1K, 5K, 10K, 21.097K, 42.195K.
@@ -228,7 +230,7 @@ Score base 50 puis :
 - -20 si effort > 180 jours
 
 **Limites**
-- Dépend du volume de données Strava et de la disponibilité des streams.
+- Dépend du volume de données et de la disponibilité des fichiers FIT (une activité importée en GPX/TCX n’en a pas).
 - Les pauses longues peuvent biaiser les temps si les streams sont trop irréguliers.
 
 ---
@@ -236,7 +238,7 @@ Score base 50 puis :
 ### 8) Objectifs course (module “Goal Race”)
 **Fichiers**
 - `Controllers/AthleteSettingsController.cs`, `Services/AthleteSettingsService.cs`
-- `strava-front/src/components/GoalRaceCard.tsx`
+- `web/src/components/GoalRaceCard.tsx`
 
 **Objectif**
 Afficher, pour chaque course cible définie librement par l’athlète (nom, distance, date), un compte à rebours et une estimation du temps actuel. Plusieurs objectifs peuvent coexister (ex: course A + course B), triés par date la plus proche.
@@ -266,13 +268,13 @@ Afficher, pour chaque course cible définie librement par l’athlète (nom, dis
 
 ### 9) Plan hebdomadaire adaptatif
 **Fichiers**
-- `strava-front/src/components/WeeklyTrainingPlanCard.tsx`
-- `strava-front/src/utils/trainingPlan.ts`
-- `strava-front/src/utils/trainingLoad.ts`
+- `web/src/components/WeeklyTrainingPlanCard.tsx`
+- `web/src/utils/trainingPlan.ts`
+- `web/src/utils/trainingLoad.ts`
 
 **Adaptation à la semaine réelle**
 - Chaque sortie de la semaine est associée à son jour et remplace la distance
-  initialement prévue par la distance réellement importée depuis Strava.
+  initialement prévue par la distance réellement importée depuis Garmin.
 - Au moins trois sorties sur les 28 derniers jours sont nécessaires avant de
   générer un plan ciblé.
 - La cible normale ne possède pas de plancher kilométrique artificiel. Elle est
@@ -307,7 +309,7 @@ Afficher, pour chaque course cible définie librement par l’athlète (nom, dis
   séparés visuellement pour éviter de confondre limite et prescription.
 
 **Limites**
-- Le plan dépend de la qualité et de la fraîcheur de la synchronisation Strava.
+- Le plan dépend de la qualité et de la fraîcheur de la synchronisation Garmin.
 - Le signal de douleur reste déclaré manuellement et ne constitue pas un
   diagnostic médical.
 
@@ -315,9 +317,9 @@ Afficher, pour chaque course cible définie librement par l’athlète (nom, dis
 
 ### 10) Export des séances TCX
 **Fichiers**
-- `strava-front/src/utils/workoutExport.ts`
-- `strava-front/src/components/NextSessionCard.tsx`
-- `strava-front/src/components/WeeklyTrainingPlanCard.tsx`
+- `web/src/utils/workoutExport.ts`
+- `web/src/components/NextSessionCard.tsx`
+- `web/src/components/WeeklyTrainingPlanCard.tsx`
 
 **Format**
 - Document `TrainingCenterDatabase` conforme au schéma TCX v2.

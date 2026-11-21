@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FabRun.Api.Security;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -29,9 +28,6 @@ public sealed class SecurityIntegrationTests : IDisposable
                     {
                         ["FABRUN_ACCESS_PASSWORD"] = Password,
                         ["FABRUN_SESSION_VERSION"] = SessionVersion,
-                        ["STRAVA_CLIENT_ID"] = "12345",
-                        ["STRAVA_CLIENT_SECRET"] = "test-strava-secret-value",
-                        ["BASE_URL"] = "https://localhost",
                         ["WEB_ORIGIN"] = "https://localhost",
                         // Overrides the dev-convenience default from
                         // appsettings.Development.json: these tests exercise
@@ -54,13 +50,11 @@ public sealed class SecurityIntegrationTests : IDisposable
     {
         var accessStatus = await _client.GetAsync("/access/status");
         var csrf = await _client.GetAsync("/access/csrf");
-        var stravaStatus = await _client.GetAsync("/auth/status");
         var activities = await _client.GetAsync("/api/activities");
         var settings = await _client.GetAsync("/api/settings");
 
         Assert.Equal(HttpStatusCode.OK, accessStatus.StatusCode);
         Assert.Equal(HttpStatusCode.OK, csrf.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, stravaStatus.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, activities.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, settings.StatusCode);
     }
@@ -70,6 +64,7 @@ public sealed class SecurityIntegrationTests : IDisposable
     [InlineData("POST", "/api/garmin/sync")]
     [InlineData("POST", "/api/garmin/history?period=7d")]
     [InlineData("POST", "/api/garmin/activities")]
+    [InlineData("POST", "/api/garmin/ski")]
     public async Task GarminEndpointsRejectAnonymousCallers(string method, string path)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
@@ -159,18 +154,38 @@ public sealed class SecurityIntegrationTests : IDisposable
         Assert.False(revoked.GetProperty("authenticated").GetBoolean());
     }
 
-    [Fact]
-    public void StravaCookieValueIsEncryptedAndAuthenticated()
+    [Theory]
+    [InlineData("POST", "/api/shoes")]
+    [InlineData("PUT", "/api/shoes/default")]
+    [InlineData("PUT", "/api/shoes/g1/retired")]
+    [InlineData("PUT", "/api/activities/1/shoe")]
+    public async Task ShoeEndpointsRejectAnonymousCallers(string method, string path)
     {
-        var protector = new StravaTokenProtector(new EphemeralDataProtectionProvider());
-        const string rawToken = "sensitive-strava-access-token";
+        using var request = new HttpRequestMessage(new HttpMethod(method), path) { Content = JsonContent.Create(new { }) };
+        using var response = await _client.SendAsync(request);
+        // Antiforgery or authentication rejects it before any store is touched.
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.BadRequest });
+    }
 
-        var protectedToken = protector.Protect(rawToken);
+    [Fact]
+    public async Task StravaAuthEndpointsAreGone()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/auth/login")).StatusCode);
+        await AuthenticateAsync();
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/auth/status")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/oauth/callback")).StatusCode);
+    }
 
-        Assert.DoesNotContain(rawToken, protectedToken, StringComparison.Ordinal);
-        Assert.True(protector.TryUnprotect(protectedToken, out var roundTrip));
-        Assert.Equal(rawToken, roundTrip);
-        Assert.False(protector.TryUnprotect(protectedToken + "tampered", out _));
+    private async Task AuthenticateAsync()
+    {
+        var csrf = await _client.GetFromJsonAsync<JsonElement>("/access/csrf");
+        using var login = new HttpRequestMessage(HttpMethod.Post, "/access/login")
+        {
+            Content = JsonContent.Create(new { password = Password })
+        };
+        login.Headers.Add(SecurityHeaders.Csrf, csrf.GetProperty("token").GetString());
+        using var response = await _client.SendAsync(login);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -182,9 +197,7 @@ public sealed class SecurityIntegrationTests : IDisposable
                 builder.UseEnvironment("Production");
                 builder.UseSetting("FABRUN_ACCESS_PASSWORD", "change-me-with-a-long-random-password");
                 builder.UseSetting("FABRUN_SESSION_VERSION", "valid-session-version-000000001");
-                builder.UseSetting("STRAVA_CLIENT_ID", "12345");
-                builder.UseSetting("STRAVA_CLIENT_SECRET", "valid-strava-secret-value");
-                builder.UseSetting("BASE_URL", "https://localhost");
+                builder.UseSetting("GARMIN_PERSONAL_API_KEY", "valid-garmin-personal-key-0001");
                 builder.UseSetting("WEB_ORIGIN", "https://localhost");
                 builder.UseSetting("AllowedHosts", "localhost");
                 builder.UseSetting("ReverseProxy:KnownProxy", "127.0.0.1");
@@ -203,9 +216,7 @@ public sealed class SecurityIntegrationTests : IDisposable
                 builder.UseEnvironment("Production");
                 builder.UseSetting("FABRUN_ACCESS_PASSWORD", "valid-random-access-password-00000001");
                 builder.UseSetting("FABRUN_SESSION_VERSION", "valid-session-version-000000001");
-                builder.UseSetting("STRAVA_CLIENT_ID", "12345");
-                builder.UseSetting("STRAVA_CLIENT_SECRET", "valid-strava-secret-value");
-                builder.UseSetting("BASE_URL", "https://localhost");
+                builder.UseSetting("GARMIN_PERSONAL_API_KEY", "valid-garmin-personal-key-0001");
                 builder.UseSetting("WEB_ORIGIN", "https://localhost");
                 builder.UseSetting("AllowedHosts", "localhost");
                 builder.UseSetting("ReverseProxy:KnownProxy", "127.0.0.1");

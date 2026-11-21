@@ -1,8 +1,6 @@
 using FabRun.Api.Models;
-using FabRun.Api.Abstractions.External;
 using FabRun.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using FabRun.Api.Security;
 
 namespace FabRun.Api.Controllers;
 
@@ -10,18 +8,13 @@ namespace FabRun.Api.Controllers;
 [Route("api/health/sleep")]
 public class HealthSleepController : ControllerBase
 {
-    private readonly IStravaClient _strava;
+    private readonly ActivityService _activities;
     private readonly HealthSleepService _sleep;
-    private readonly StravaTokenService _tokenService;
 
-    public HealthSleepController(
-        IStravaClient strava,
-        HealthSleepService sleep,
-        StravaTokenService tokenService)
+    public HealthSleepController(ActivityService activities, HealthSleepService sleep)
     {
-        _strava = strava;
+        _activities = activities;
         _sleep = sleep;
-        _tokenService = tokenService;
     }
 
     [HttpPost]
@@ -30,10 +23,6 @@ public class HealthSleepController : ControllerBase
         [FromBody] SleepUploadRequest body,
         CancellationToken cancellationToken)
     {
-        var token = await GetAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(token))
-            return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
-
         if (body.sessions is null || body.sessions.Count == 0)
             return BadRequest(new { error = "Aucune session sommeil fournie." });
 
@@ -54,7 +43,7 @@ public class HealthSleepController : ControllerBase
             });
         }
 
-        var profile = await _strava.FetchAthleteProfileAsync(token, cancellationToken);
+        var ownerId = await _activities.OwnerIdAsync();
         var sessions = body.sessions.Select(s => new SleepSession(
             s.startUtc,
             s.endUtc,
@@ -62,23 +51,15 @@ public class HealthSleepController : ControllerBase
             s.source ?? "healthkit"
         ));
 
-        await _sleep.UpsertSessionsAsync(profile.id, sessions);
-        var summary = await _sleep.GetSummaryAsync(profile.id);
+        await _sleep.UpsertSessionsAsync(ownerId, sessions);
+        var summary = await _sleep.GetSummaryAsync(ownerId);
         return Ok(summary);
     }
 
     [HttpGet("summary")]
     public async Task<IActionResult> Summary(CancellationToken cancellationToken)
     {
-        var token = await GetAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(token))
-            return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
-
-        var profile = await _strava.FetchAthleteProfileAsync(token, cancellationToken);
-        var summary = await _sleep.GetSummaryAsync(profile.id);
+        var summary = await _sleep.GetSummaryAsync(await _activities.OwnerIdAsync());
         return Ok(summary);
     }
-
-    private Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken)
-        => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
 }

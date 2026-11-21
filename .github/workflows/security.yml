@@ -42,7 +42,7 @@ jobs:
           dotnet publish FabRun.Api.csproj --no-restore --configuration Release --output publish
           test -z "$(find publish/Data -maxdepth 1 -name '*.json' 2>/dev/null)"
           test ! -d publish/certs
-          test ! -d publish/strava-front
+          test ! -d publish/web
           test ! -d publish/FabRun.Api.Tests
           test ! -e publish/appsettings.Development.json
 
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: strava-front
+        working-directory: web
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: strava-front/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install
         run: npm ci
@@ -108,8 +108,7 @@ jobs:
       FABRUN_DOMAIN: fabrun.example.com
       FABRUN_ACCESS_PASSWORD: "012345678901234567890123"
       FABRUN_SESSION_VERSION: "012345678901234567890123"
-      STRAVA_CLIENT_ID: "12345"
-      STRAVA_CLIENT_SECRET: "012345678901234567890123"
+      GARMIN_PERSONAL_API_KEY: "012345678901234567890123"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -121,7 +120,7 @@ jobs:
           test "$(docker image inspect deploy-api --format '{{.Config.User}}')" = "1654"
           test "$(docker image inspect deploy-web --format '{{.Config.User}}')" = "fabrun"
           docker run --rm --entrypoint sh deploy-api -c \
-            'test -z "$(find /app/Data -maxdepth 1 -name "*.json" 2>/dev/null)" && test ! -d /app/certs && test ! -d /app/strava-front'
+            'test -z "$(find /app/Data -name "*.json" 2>/dev/null)" && test ! -d /app/certs && test ! -d /app/web'
 
       - name: Validate Caddy configuration
         run: |

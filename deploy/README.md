@@ -30,12 +30,10 @@ Dans la zone DNS de `fabienhance.com`, ajouter :
 Ajouter aussi un enregistrement AAAA seulement si le VPS possède une IPv6 publique correctement configurée.
 Ne pas modifier les enregistrements MX, SPF ou DKIM utilisés par les e-mails.
 
-## 3. Configurer Strava
+## 3. Créer la clé Garmin
 
-Dans <https://www.strava.com/settings/api> :
-
-- **Authorization Callback Domain** : `fabrun.fabienhance.com`
-- callback utilisé par FabRun : `https://fabrun.fabienhance.com/oauth/callback`
+Créer une clé personnelle sur <https://connect.garmin.com/app/settings/personalApiToken>.
+Toutes les activités viennent de Garmin : sans clé, seule l’archive importée s’affiche.
 
 ## 4. Copier et configurer FabRun
 
@@ -54,14 +52,11 @@ Modifier `.env.production` :
 FABRUN_DOMAIN=fabrun.fabienhance.com
 FABRUN_ACCESS_PASSWORD=un-mot-de-passe-long-unique
 FABRUN_SESSION_VERSION=une-valeur-aleatoire-distincte
-STRAVA_CLIENT_ID=identifiant-strava
-STRAVA_CLIENT_SECRET=secret-strava
-# Facultatif : active la page Récupération et la forme du jour
 GARMIN_PERSONAL_API_KEY=cle-personnelle-garmin
 ```
 
-La clé Garmin se crée sur <https://connect.garmin.com/app/settings/personalApiToken>. Elle reste
-côté serveur. Sans elle, FabRun fonctionne avec Strava seul et la forme du jour reste « inconnue ».
+La clé Garmin reste côté serveur et n’est jamais envoyée au navigateur. Elle est
+obligatoire en production.
 
 Le fichier `.env.production` est ignoré par Git. Ne jamais le committer ni envoyer son contenu dans une conversation.
 Le mot de passe doit contenir au moins 20 caractères et la version de session au moins 16 caractères.
@@ -77,7 +72,28 @@ docker compose --env-file .env.production -f compose.yaml logs -f --tail=100
 
 Caddy demande automatiquement un certificat public et renouvelle celui-ci. Le DNS doit déjà pointer vers le VPS et les ports 80/443 doivent être accessibles.
 
-Après ce durcissement, les anciens cookies Strava ne sont plus acceptés car leur contenu n'était pas chiffré par l'application. Une reconnexion Strava unique est donc attendue après le premier déploiement.
+### Importer l’historique Strava et les chaussures
+
+L’archive des séances antérieures à la montre (`strava-archive.json`) et le registre
+des chaussures (`shoes.json`) sont produits une fois, en local. Les copier dans le
+volume de données avant le premier lancement de cette version :
+
+```bash
+# Depuis le poste local
+scp Data/strava-archive.json Data/shoes.json vps:~/fabrun-import/
+
+# Sur le VPS, depuis fabrun/deploy
+docker compose --env-file .env.production -f compose.yaml stop api
+docker run --rm -v deploy_fabrun-data:/data -v ~/fabrun-import:/import:ro alpine:3.20 \
+  sh -c 'cp /import/strava-archive.json /import/shoes.json /data/ \
+    && chown 1654:1654 /data/strava-archive.json /data/shoes.json \
+    && chmod 600 /data/strava-archive.json /data/shoes.json'
+docker compose --env-file .env.production -f compose.yaml up -d api
+rm -r ~/fabrun-import
+```
+
+Les préférences, le sommeil et les meilleurs efforts déjà présents dans le volume
+restent valables : ils sont rattachés au même identifiant que l’archive.
 
 Si FabRun utilisait déjà les volumes Caddy avec une ancienne image lancée en tant que `root`, corriger une seule fois leur propriétaire avant le redémarrage :
 

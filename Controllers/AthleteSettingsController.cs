@@ -1,7 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using FabRun.Api.Abstractions.External;
 using FabRun.Api.Models;
-using FabRun.Api.Security;
 using FabRun.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,7 +11,7 @@ public class AthleteSettingsController : ControllerBase
 {
     // Mirrors the frontend's BrandKey union (ShoeUsageCard.tsx) - kept in
     // sync by hand since it's a small, rarely-changing list of shoe brands.
-    private static readonly HashSet<string> KnownBrands = new(StringComparer.Ordinal)
+    internal static readonly HashSet<string> KnownBrands = new(StringComparer.Ordinal)
     {
         "nike", "adidas", "hoka", "asics", "new_balance", "on",
         "saucony", "brooks", "salomon", "puma", "mizuno", "altra", "other",
@@ -21,29 +19,24 @@ public class AthleteSettingsController : ControllerBase
 
     private static readonly HashSet<string> KnownSexes = new(StringComparer.Ordinal) { "male", "female" };
 
-    private readonly IStravaClient _strava;
+    private readonly ActivityService _activities;
     private readonly AthleteSettingsService _settings;
-    private readonly StravaTokenService _tokenService;
+    private readonly ShoeService _shoes;
 
     public AthleteSettingsController(
-        IStravaClient strava,
+        ActivityService activities,
         AthleteSettingsService settings,
-        StravaTokenService tokenService)
+        ShoeService shoes)
     {
-        _strava = strava;
+        _activities = activities;
         _settings = settings;
-        _tokenService = tokenService;
+        _shoes = shoes;
     }
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        var token = await GetAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(token))
-            return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
-
-        var profile = await _strava.FetchAthleteProfileAsync(token, cancellationToken);
-        var settings = await _settings.LoadAsync(profile.id);
+        var settings = await _settings.LoadAsync(await _activities.OwnerIdAsync());
         return Ok(settings);
     }
 
@@ -52,10 +45,6 @@ public class AthleteSettingsController : ControllerBase
         [FromBody] UpdateAthleteSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        var token = await GetAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(token))
-            return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
-
         // The client always resends the full desired list (add/edit/delete
         // are all expressed by the array it sends). An existing goal keeps
         // the id it was loaded with; a brand new one omits it and gets a
@@ -70,12 +59,11 @@ public class AthleteSettingsController : ControllerBase
         if (goalRaces.Select(goal => goal.Id).Distinct(StringComparer.Ordinal).Count() != goalRaces.Count)
             return BadRequest(new { error = "Deux objectifs ne peuvent pas partager le même identifiant." });
 
-        var profile = await _strava.FetchAthleteProfileAsync(token, cancellationToken);
-        var knownShoeIds = (profile.shoes ?? new List<ProfileShoe>())
-            .Select(shoe => shoe.id)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.Ordinal);
-        var shoePreferences = (request.ShoePreferences ?? new List<ShoePreferenceRequest>())
+        var requested = request.ShoePreferences ?? new List<ShoePreferenceRequest>();
+        var knownShoeIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in requested.Select(p => p.GearId).Distinct(StringComparer.Ordinal))
+            if (await _shoes.ExistsAsync(id)) knownShoeIds.Add(id);
+        var shoePreferences = requested
             .Where(preference => knownShoeIds.Contains(preference.GearId))
             .DistinctBy(preference => preference.GearId, StringComparer.Ordinal)
             .Select(preference => new ShoePreference(
@@ -94,7 +82,7 @@ public class AthleteSettingsController : ControllerBase
             request.AgeYears,
             request.Sex);
 
-        await _settings.SaveAsync(profile.id, settings);
+        await _settings.SaveAsync(await _activities.OwnerIdAsync(), settings);
         return Ok(settings);
     }
 
@@ -103,9 +91,6 @@ public class AthleteSettingsController : ControllerBase
         if (string.IsNullOrWhiteSpace(brand)) return null;
         return KnownBrands.Contains(brand) ? brand : null;
     }
-
-    private Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken)
-        => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
 }
 
 // MVC validates positional records through their constructor parameters.

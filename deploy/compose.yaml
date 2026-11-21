@@ -6,14 +6,11 @@ services:
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      BASE_URL: https://${FABRUN_DOMAIN}
       WEB_ORIGIN: https://${FABRUN_DOMAIN}
       FrontendOrigin: https://${FABRUN_DOMAIN}
       AllowedHosts: ${FABRUN_DOMAIN}
       ReverseProxy__KnownProxy: 172.30.0.2
-      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
-      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
-      GARMIN_PERSONAL_API_KEY: ${GARMIN_PERSONAL_API_KEY:-}
+      GARMIN_PERSONAL_API_KEY: ${GARMIN_PERSONAL_API_KEY}
       FABRUN_ACCESS_PASSWORD: ${FABRUN_ACCESS_PASSWORD}
       FABRUN_SESSION_VERSION: ${FABRUN_SESSION_VERSION}
     volumes:

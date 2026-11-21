@@ -13,6 +13,7 @@
 **/*.p12
 Data/*.json
 Data/**/*.json
+Data.backup-*/
 
 .pnpm-store/
 

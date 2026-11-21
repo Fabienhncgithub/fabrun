@@ -14,7 +14,7 @@ public class GarminController(GarminService garmin, ILogger<GarminController> lo
     public IActionResult Status() => Ok(new { configured = garmin.Configured, recovery = garmin.Snapshot });
 
     [HttpPost("sync")]
-    [EnableRateLimiting("strava-heavy")]
+    [EnableRateLimiting("activities-heavy")]
     public Task<IActionResult> Sync(CancellationToken ct) => Execute(null, ct);
 
     [HttpPost("history")]

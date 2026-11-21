@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using FabRun.Api.Abstractions.External;
-using FabRun.Api.Infrastructure.External;
 using FabRun.Api.Models;
 using FabRun.Api.Security;
 using Microsoft.AspNetCore.DataProtection;
@@ -32,15 +30,24 @@ public sealed class AthleteSettingsIntegrationTests : IDisposable
                     ["FABRUN_ACCESS_PASSWORD"] = Password,
                     ["FABRUN_SESSION_VERSION"] = "settings-tests-session-version-0001",
                     ["FABRUN_DEV_SKIP_ACCESS_PASSWORD"] = "false",
-                    ["AthleteSettings:StorePath"] = Path.Combine(_tempDir, "athlete-settings.json")
+                    ["AthleteSettings:StorePath"] = Path.Combine(_tempDir, "athlete-settings.json"),
+                    ["Shoes:StorePath"] = Path.Combine(_tempDir, "shoes.json"),
+                    ["ActivityArchive:Path"] = Path.Combine(_tempDir, "archive.json"),
+                    // No Garmin key: these tests never reach the network.
+                    ["GARMIN_PERSONAL_API_KEY"] = ""
                 }));
             builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
-                services.AddHttpClient<IStravaClient, StravaApiClient>()
-                    .ConfigurePrimaryHttpMessageHandler(() => new AthleteProfileHandler());
-            });
+                services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider()));
         });
+        // Settings are keyed by the archive's athlete; shoes come from FabRun's own registry.
+        File.WriteAllText(Path.Combine(_tempDir, "archive.json"),
+            """
+            {"athleteId":42,"importedAtUtc":"2026-01-01T00:00:00Z","activities":[
+              {"id":7,"sport_type":"Run","distance":10000,"moving_time":3000,"total_elevation_gain":0,"start_date_local":"2024-01-01T08:00:00Z","name":"Course","gear_id":"g-shoe-1"},
+              {"id":8,"sport_type":"AlpineSki","distance":50000,"moving_time":20000,"total_elevation_gain":0,"start_date_local":"2024-01-02T08:00:00Z","name":"Ski"}]}
+            """);
+        File.WriteAllText(Path.Combine(_tempDir, "shoes.json"),
+            """{"defaultShoeId":null,"shoes":[{"id":"g-shoe-1","name":"Hoka","initialKm":400,"retired":false},{"id":"g-shoe-2","name":"Nike","initialKm":200,"retired":false}],"assignments":{}}""");
         _client = _factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost"),
@@ -109,6 +116,42 @@ public sealed class AthleteSettingsIntegrationTests : IDisposable
         Assert.Equal(800, reloaded!.ShoePreferences!.Single(p => p.GearId == "g-shoe-1").RetirementKm);
     }
 
+    [Fact]
+    public async Task ShoeEndpoints_ValidateAndPersist()
+    {
+        await AuthenticateAsync();
+
+        using var add = await _client.PostAsJsonAsync("/api/shoes", new { name = "Novablast", brand = "asics", initialKm = 12, makeDefault = true });
+        Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+        var added = (await add.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        using var badBrand = await _client.PostAsJsonAsync("/api/shoes", new { name = "X", brand = "unknown", initialKm = 0 });
+        Assert.Equal(HttpStatusCode.BadRequest, badBrand.StatusCode);
+        using var tooFar = await _client.PostAsJsonAsync("/api/shoes", new { name = "X", initialKm = 99999 });
+        Assert.Equal(HttpStatusCode.BadRequest, tooFar.StatusCode);
+
+        using var retire = await _client.PutAsJsonAsync("/api/shoes/g-shoe-2/retired", new { retired = true });
+        Assert.Equal(HttpStatusCode.NoContent, retire.StatusCode);
+        using var retiredDefault = await _client.PutAsJsonAsync("/api/shoes/default", new { shoeId = "g-shoe-2" });
+        Assert.Equal(HttpStatusCode.BadRequest, retiredDefault.StatusCode);
+        using var unknownShoe = await _client.PutAsJsonAsync("/api/shoes/nope/retired", new { retired = true });
+        Assert.Equal(HttpStatusCode.NotFound, unknownShoe.StatusCode);
+
+        using var assign = await _client.PutAsJsonAsync("/api/activities/7/shoe", new { shoeId = added });
+        Assert.Equal(HttpStatusCode.NoContent, assign.StatusCode);
+        using var ski = await _client.PutAsJsonAsync("/api/activities/8/shoe", new { shoeId = added });
+        Assert.Equal(HttpStatusCode.BadRequest, ski.StatusCode);
+        using var missing = await _client.PutAsJsonAsync("/api/activities/999/shoe", new { shoeId = added });
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        var profile = await _client.GetFromJsonAsync<JsonElement>("/api/profile");
+        var shoes = profile.GetProperty("shoes").EnumerateArray().ToList();
+        var nova = shoes.Single(s => s.GetProperty("id").GetString() == added);
+        Assert.True(nova.GetProperty("is_default").GetBoolean());
+        Assert.Equal(22, nova.GetProperty("converted_distance").GetDouble());
+        Assert.True(shoes.Single(s => s.GetProperty("id").GetString() == "g-shoe-2").GetProperty("retired").GetBoolean());
+        Assert.Equal(400, shoes.Single(s => s.GetProperty("id").GetString() == "g-shoe-1").GetProperty("converted_distance").GetDouble());
+    }
+
     private async Task AuthenticateAsync()
     {
         var csrf = await _client.GetFromJsonAsync<JsonElement>("/access/csrf");
@@ -120,11 +163,6 @@ public sealed class AthleteSettingsIntegrationTests : IDisposable
         using var response = await _client.SendAsync(login);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var bundle = new StravaTokenBundle("test-access-token", "test-refresh-token",
-            DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds());
-        var cookie = _factory.Services.GetRequiredService<StravaTokenProtector>()
-            .Protect(JsonSerializer.Serialize(bundle));
-        _client.DefaultRequestHeaders.Add("Cookie", $"{SecurityCookies.StravaAccessToken}={cookie}");
         csrf = await _client.GetFromJsonAsync<JsonElement>("/access/csrf");
         _client.DefaultRequestHeaders.Add(SecurityHeaders.Csrf, csrf.GetProperty("token").GetString());
     }
@@ -141,26 +179,6 @@ public sealed class AthleteSettingsIntegrationTests : IDisposable
         ageYears = 34,
         sex = "female"
     })!.AsObject();
-
-    private sealed class AthleteProfileHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            Assert.Equal("https://www.strava.com/api/v3/athlete", request.RequestUri!.AbsoluteUri);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new
-                {
-                    id = 42,
-                    shoes = new[]
-                    {
-                        new { id = "g-shoe-1", name = "Hoka", distance = 400000 },
-                        new { id = "g-shoe-2", name = "Nike", distance = 200000 }
-                    }
-                })
-            });
-        }
-    }
 
     public void Dispose()
     {

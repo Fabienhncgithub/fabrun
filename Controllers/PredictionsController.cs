@@ -1,9 +1,7 @@
 using FabRun.Api.Models;
-using FabRun.Api.Abstractions.External;
 using FabRun.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using FabRun.Api.Security;
 
 namespace FabRun.Api.Controllers;
 
@@ -11,35 +9,28 @@ namespace FabRun.Api.Controllers;
 [Route("api/predictions")]
 public class PredictionsController : ControllerBase
 {
-    private readonly IStravaClient _strava;
+    private readonly ActivityService _activities;
     private readonly BestEffortsService _bestEfforts;
     private readonly BestEffortsStoreService _store;
-    private readonly StravaTokenService _tokenService;
 
     public PredictionsController(
-        IStravaClient strava,
+        ActivityService activities,
         BestEffortsService bestEfforts,
-        BestEffortsStoreService store,
-        StravaTokenService tokenService)
+        BestEffortsStoreService store)
     {
-        _strava = strava;
+        _activities = activities;
         _bestEfforts = bestEfforts;
         _store = store;
-        _tokenService = tokenService;
     }
 
     [HttpGet("running")]
-    [EnableRateLimiting("strava-analysis")]
+    [EnableRateLimiting("activities-analysis")]
     public async Task<IActionResult> GetRunning(
         [FromQuery] bool refresh = false,
         CancellationToken cancellationToken = default)
     {
-        var token = await GetAccessTokenAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(token))
-            return Unauthorized(new { error = "Token manquant (reconnecte-toi)." });
-
-        var profile = await _strava.FetchAthleteProfileAsync(token, cancellationToken);
-        var snapshot = await _store.LoadAsync(profile.id);
+        var ownerId = await _activities.OwnerIdAsync();
+        var snapshot = await _store.LoadAsync(ownerId);
         var now = DateTimeOffset.UtcNow;
 
         if (!refresh && snapshot != null && (now - snapshot.calculatedAtUtc).TotalHours < 6)
@@ -47,12 +38,13 @@ public class PredictionsController : ControllerBase
             return Ok(BuildResponse(snapshot.efforts));
         }
 
+        var activities = await _activities.AllAsync(refresh, cancellationToken);
         var efforts = await _bestEfforts.ComputeBestEffortsAsync(
-            token,
+            activities,
             daysBack: 365,
             cancellationToken: cancellationToken);
         var newSnapshot = new BestEffortSnapshot(now, efforts);
-        await _store.SaveAsync(profile.id, newSnapshot);
+        await _store.SaveAsync(ownerId, newSnapshot);
 
         return Ok(BuildResponse(efforts));
     }
@@ -157,8 +149,4 @@ public class PredictionsController : ControllerBase
         return result;
     }
 
-    
-
-    private Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken)
-        => _tokenService.ResolveAccessTokenAsync(HttpContext, cancellationToken);
-}
+    }

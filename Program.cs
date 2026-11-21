@@ -3,7 +3,6 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using FabRun.Api.Abstractions.External;
 using FabRun.Api.Abstractions.Persistence;
-using FabRun.Api.Infrastructure.External;
 using FabRun.Api.Infrastructure.Persistence;
 using FabRun.Api.Security;
 using FabRun.Api.Services;
@@ -42,17 +41,11 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Options)
         .AllowCredentials()));
 
-builder.Services
-    .AddHttpClient<IStravaClient, StravaApiClient>(client =>
-    {
-        client.Timeout = TimeSpan.FromSeconds(30);
-        client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("FabRun/1.0");
-    });
 builder.Services.AddSingleton<ISleepRepository, FileSleepRepository>();
 builder.Services.AddSingleton<IBestEffortsRepository, FileBestEffortsRepository>();
 builder.Services.AddSingleton<IAthleteSettingsRepository, FileAthleteSettingsRepository>();
-builder.Services.AddSingleton<IActivityCaloriesRepository, FileActivityCaloriesRepository>();
+builder.Services.AddSingleton<IShoeRepository, FileShoeRepository>();
+builder.Services.AddSingleton<IActivityArchive, FileActivityArchive>();
 builder.Services.AddSingleton<HealthSleepService>();
 builder.Services.AddHttpClient("Garmin", client =>
 {
@@ -73,11 +66,12 @@ builder.Services.AddHttpClient("Garmin", client =>
     AllowAutoRedirect = false,
 });
 builder.Services.AddSingleton<GarminService>();
+builder.Services.AddSingleton<IActivityStreams>(services => services.GetRequiredService<GarminService>());
+builder.Services.AddSingleton<ShoeService>();
+builder.Services.AddSingleton<ActivityService>();
 builder.Services.AddSingleton<BestEffortsStoreService>();
 builder.Services.AddSingleton<BestEffortsService>();
 builder.Services.AddSingleton<AthleteSettingsService>();
-builder.Services.AddSingleton<StravaTokenProtector>();
-builder.Services.AddSingleton<StravaTokenService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddRequestTimeouts(options =>
 {
@@ -159,9 +153,9 @@ builder.Services.AddRateLimiter(options =>
         FixedWindow(context, permitLimit: 5, window: TimeSpan.FromMinutes(5)));
     options.AddPolicy("garmin-history", context =>
         FixedWindow(context, permitLimit: 60, window: TimeSpan.FromMinutes(5)));
-    options.AddPolicy("strava-heavy", context =>
+    options.AddPolicy("activities-heavy", context =>
         FixedWindow(context, permitLimit: 6, window: TimeSpan.FromMinutes(5)));
-    options.AddPolicy("strava-analysis", context =>
+    options.AddPolicy("activities-analysis", context =>
         FixedWindow(context, permitLimit: 2, window: TimeSpan.FromMinutes(10)));
 });
 builder.Services.AddAuthorization(options =>
@@ -234,7 +228,7 @@ app.Use(async (context, next) =>
         var (statusCode, message) = MapUpstreamError(ex);
         app.Logger.LogWarning(
             ex,
-            "Upstream Strava request failed with mapped status {StatusCode}",
+            "Upstream Garmin request failed with mapped status {StatusCode}",
             statusCode);
         context.Response.Clear();
         context.Response.StatusCode = statusCode;
@@ -274,27 +268,21 @@ static RateLimitPartition<string> FixedWindow(HttpContext context, int permitLim
 
 static bool IsSensitivePath(PathString path) =>
     path.StartsWithSegments("/api")
-    || path.StartsWithSegments("/auth")
-    || path.StartsWithSegments("/oauth")
     || path.StartsWithSegments("/access");
 
 static (int StatusCode, string Message) MapUpstreamError(HttpRequestException exception) =>
     exception.StatusCode switch
     {
-        HttpStatusCode.Unauthorized => (
-            StatusCodes.Status401Unauthorized,
-            "Token Strava invalide ou expiré. Reconnecte-toi."),
-        HttpStatusCode.Forbidden => (
-            StatusCodes.Status403Forbidden,
-            exception.Message.Contains("inactive", StringComparison.OrdinalIgnoreCase)
-                ? "L'application API Strava est inactive. Active-la depuis les paramètres API Strava."
-                : "Strava refuse cet accès. Reconnecte-toi et vérifie les autorisations accordées."),
+        // 502 rather than 401/403: a refused Garmin key must not look like an expired FabRun session.
+        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => (
+            StatusCodes.Status502BadGateway,
+            "Clé Garmin invalide, expirée ou accès refusé. Vérifie ta clé Personal API."),
         HttpStatusCode.TooManyRequests => (
             StatusCodes.Status429TooManyRequests,
-            "Limite Strava atteinte. Réessaie dans quelques minutes."),
+            "Quota Garmin atteint. Réessaie dans quelques minutes."),
         _ => (
             StatusCodes.Status502BadGateway,
-            "Strava est momentanément indisponible. Réessaie plus tard.")
+            "Garmin est momentanément indisponible. Réessaie plus tard.")
     };
 
 static string NormalizeOrigin(string value)
@@ -321,9 +309,7 @@ static void ValidateProductionConfiguration(IConfiguration configuration, IWebHo
 
     RequireSecret(configuration, "FABRUN_ACCESS_PASSWORD", minimumLength: 20);
     RequireSecret(configuration, "FABRUN_SESSION_VERSION", minimumLength: 16);
-    RequireSecret(configuration, "STRAVA_CLIENT_ID", minimumLength: 1);
-    RequireSecret(configuration, "STRAVA_CLIENT_SECRET", minimumLength: 16);
-    RequireHttpsOrigin(configuration, "BASE_URL");
+    RequireSecret(configuration, "GARMIN_PERSONAL_API_KEY", minimumLength: 16);
     RequireHttpsOrigin(configuration, "WEB_ORIGIN");
 
     var allowedHosts = configuration["AllowedHosts"];
@@ -357,8 +343,8 @@ static bool IsPlaceholder(string value) =>
     || value.Contains("votre-", StringComparison.OrdinalIgnoreCase)
     || value.Contains("un-mot-de-passe", StringComparison.OrdinalIgnoreCase)
     || value.Contains("une-valeur", StringComparison.OrdinalIgnoreCase)
-    || value.Contains("identifiant-strava", StringComparison.OrdinalIgnoreCase)
-    || value.Contains("secret-strava", StringComparison.OrdinalIgnoreCase);
+    || value.Contains("votre-cle", StringComparison.OrdinalIgnoreCase)
+    || value.Contains("cle-personnelle", StringComparison.OrdinalIgnoreCase);
 
 static void RequireHttpsOrigin(IConfiguration configuration, string key)
 {

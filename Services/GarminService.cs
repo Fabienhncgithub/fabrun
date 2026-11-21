@@ -7,7 +7,7 @@ using FabRun.Api.Models;
 namespace FabRun.Api.Services;
 
 // Personal API: a single account configured by the owner of this private dashboard.
-public sealed class GarminService(IHttpClientFactory clients, IConfiguration config)
+public sealed class GarminService(IHttpClientFactory clients, IConfiguration config) : FabRun.Api.Abstractions.External.IActivityStreams
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(15);
     private const int WeightLookbackDays = 180;
@@ -102,6 +102,115 @@ public sealed class GarminService(IHttpClientFactory clients, IConfiguration con
                 Number(item, "activityTrainingLoad"), Number(item, "aerobicTrainingEffect", 5), Number(item, "anaerobicTrainingEffect", 5)));
         }
         return result;
+    }
+
+    private (DateTimeOffset Time, List<Activity> Activities)? allActivitiesCache;
+    private readonly Dictionary<long, DistanceStream?> streamCache = new();
+    private const int MaxCachedStreams = 120;
+
+    /// <summary>Whole Garmin history mapped to FabRun's activity shape (most recent first).</summary>
+    public async Task<List<Activity>> AllActivitiesAsync(bool refresh, CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if (!refresh && allActivitiesCache is { } cached && cached.Time > DateTimeOffset.UtcNow - CacheDuration)
+                return cached.Activities;
+            using var client = clients.CreateClient("Garmin");
+            var activities = new List<Activity>();
+            const int limit = 99, maxPages = 30;
+            for (var page = 0; page < maxPages; page++)
+            {
+                using var json = await GetAsync(client,
+                    $"activitylist-service/activities/search/activities?start={page * limit}&limit={limit}&sortOrder=desc&excludeChildren=true", ct);
+                if (json.RootElement.ValueKind == JsonValueKind.Null) break;
+                if (json.RootElement.ValueKind != JsonValueKind.Array) throw new JsonException("Unexpected Garmin activities response.");
+                foreach (var item in json.RootElement.EnumerateArray())
+                    if (ToActivity(item) is { } activity) activities.Add(activity);
+                if (json.RootElement.GetArrayLength() < limit) break;
+            }
+            var result = activities.DistinctBy(a => a.id).ToList();
+            allActivitiesCache = (DateTimeOffset.UtcNow, result);
+            return result;
+        }
+        finally { gate.Release(); }
+    }
+
+    /// <summary>Garmin activity summary to FabRun's activity (Strava-compatible field names kept for the UI).</summary>
+    internal static Activity? ToActivity(JsonElement item)
+    {
+        var id = Child(item, "activityId");
+        var start = Child(item, "startTimeLocal");
+        var type = Child(Child(item, "activityType"), "typeKey");
+        if (id.ValueKind != JsonValueKind.Number || !id.TryGetInt64(out var key) || key <= 0
+            || start.ValueKind != JsonValueKind.String
+            || !DateTime.TryParseExact(start.GetString(), "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var local)
+            || type.ValueKind != JsonValueKind.String) return null;
+        var moving = Number(item, "movingDuration");
+        var duration = moving is > 0 ? moving : Number(item, "duration");
+        var name = Child(item, "activityName");
+        static double? Positive(double? value) => value is > 0 ? value : null;
+        return new Activity(
+            key,
+            SportType(type.GetString()!),
+            Number(item, "distance") ?? 0,
+            (int)Math.Round(duration ?? 0),
+            Number(item, "elevationGain") ?? 0,
+            // Same convention as Strava's start_date_local: local wall clock with a Z suffix.
+            local.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            Positive(Number(item, "averageSpeed")),
+            name.ValueKind == JsonValueKind.String ? name.GetString()! : "",
+            calories: Positive(Number(item, "calories")),
+            average_heartrate: Positive(Number(item, "averageHR")),
+            max_heartrate: Positive(Number(item, "maxHR")),
+            max_speed: Positive(Number(item, "maxSpeed")));
+    }
+
+    /// <summary>Garmin typeKey to the sport names the analytics and UI already use.</summary>
+    internal static string SportType(string typeKey) => typeKey switch
+    {
+        "running" or "street_running" or "track_running" or "ultra_run" => "Run",
+        "trail_running" => "TrailRun",
+        "treadmill_running" or "indoor_running" or "virtual_run" => "VirtualRun",
+        "walking" or "casual_walking" or "speed_walking" => "Walk",
+        "hiking" or "mountaineering" => "Hike",
+        "strength_training" => "WeightTraining",
+        "e_bike_fitness" or "e_bike_road" => "EBikeRide",
+        "e_bike_mountain" => "EMountainBikeRide",
+        "cycling" or "road_biking" => "Ride",
+        "mountain_biking" => "MountainBikeRide",
+        "gravel_cycling" => "GravelRide",
+        "indoor_cycling" or "virtual_ride" => "VirtualRide",
+        "lap_swimming" or "open_water_swimming" or "swimming" => "Swim",
+        "resort_skiing" or "resort_skiing_snowboarding_ws" or "resort_skiing_ws" => "AlpineSki",
+        "resort_snowboarding" or "resort_snowboarding_ws" or "snowboarding" => "Snowboard",
+        "backcountry_skiing" or "backcountry_skiing_snowboarding_ws" => "BackcountrySki",
+        "cross_country_skiing_ws" or "skate_skiing_ws" or "cross_country_skiing" => "NordicSki",
+        "yoga" => "Yoga",
+        "pilates" => "Pilates",
+        "hiit" => "HighIntensityIntervalTraining",
+        "elliptical" => "Elliptical",
+        "stair_climbing" => "StairStepper",
+        "rowing" or "indoor_rowing" => "Rowing",
+        "tennis" => "Tennis",
+        "padel" or "paddelball" => "Padel",
+        _ => "Workout"
+    };
+
+    /// <summary>Distance/time samples from the original FIT file, or null when the file has none.</summary>
+    public async Task<DistanceStream?> DistanceStreamAsync(long activityId, CancellationToken ct)
+    {
+        lock (streamCache)
+            if (streamCache.TryGetValue(activityId, out var hit)) return hit;
+        using var client = clients.CreateClient("Garmin");
+        var zip = await GetBytesAsync(client, $"download-service/files/activity/{activityId}", ct);
+        var stream = zip is null ? null : FitStreams.FromZip(zip);
+        lock (streamCache)
+        {
+            if (streamCache.Count >= MaxCachedStreams) streamCache.Clear();
+            streamCache[activityId] = stream;
+        }
+        return stream;
     }
 
     private GarminSkiBatch? skiCache;
@@ -297,6 +406,29 @@ public sealed class GarminService(IHttpClientFactory clients, IConfiguration con
                 return JsonDocument.Parse("null");
             result.EnsureSuccessStatusCode();
             return JsonDocument.Parse(await result.Content.ReadAsStringAsync(ct));
+        }
+        throw new HttpRequestException("Garmin authentication failed.", null, HttpStatusCode.Unauthorized);
+    }
+
+    private async Task<byte[]?> GetBytesAsync(HttpClient client, string path, CancellationToken ct)
+    {
+        string? rejected = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            if (accessToken is null || accessToken == rejected || tokenExpires <= DateTimeOffset.UtcNow)
+                await EnsureTokenAsync(client, rejected, ct);
+            var token = accessToken;
+            using var get = new HttpRequestMessage(HttpMethod.Get, path);
+            get.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var result = await client.SendAsync(get, ct);
+            if (result.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
+            {
+                rejected = token;
+                continue;
+            }
+            if (result.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent) return null;
+            result.EnsureSuccessStatusCode();
+            return await result.Content.ReadAsByteArrayAsync(ct);
         }
         throw new HttpRequestException("Garmin authentication failed.", null, HttpStatusCode.Unauthorized);
     }

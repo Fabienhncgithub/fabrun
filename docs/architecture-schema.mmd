@@ -1,9 +1,9 @@
 flowchart TD
-    subgraph Frontend[Frontend - React/Vite]
+    subgraph Frontend[Frontend - React/Vite - web/]
         App[App.tsx]
         Api[api.ts]
         UI1[ActivitiesTable]
-        UI2[KpisCard]
+        UI2[KpisCard / SkiCard]
         UI3[TrainingLoadCard]
         UI4[ShoeUsageCard]
         UI5[PerformancePredictionsCard]
@@ -17,58 +17,51 @@ flowchart TD
     end
 
     subgraph Backend[Backend - ASP.NET Core]
-        Program[Program.cs\nDI + CORS + Swagger]
+        Program[Program.cs\nDI + CORS + auth + rate limits]
 
         subgraph Controllers
-            CAuth[AuthController]
+            CAccess[AccessController]
             CAct[ActivitiesController]
+            CShoes[ShoesController]
             CPred[PredictionsController]
+            CGarmin[GarminController]
             CSleep[HealthSleepController]
         end
 
         subgraph Services
-            SStrava[StravaService\nHTTP Strava + MemoryCache]
-            SBest[BestEffortsService\nBest effort computation]
-            SStore[BestEffortsStoreService\nJSON store]
-            SSleep[HealthSleepService\nSleep store + summary]
-            SMath[PredictionMath\nCalibration + confidence]
+            SAct[ActivityService\nGarmin + archive]
+            SGarmin[GarminService\nHTTP Garmin + cache 15 min]
+            SFit[FitStreams\nFIT distance/time]
+            SShoes[ShoeService\ndefault + per run]
+            SBest[BestEffortsService]
+            SSleep[HealthSleepService]
+            SMath[PredictionMath]
         end
 
-        subgraph DataModels[Models / DTO]
-            M1[PredictionResponse]
-            M2[SleepUploadRequest]
-            M3[Activity / Kpis / AthleteProfile]
-        end
-
-        Program --> CAuth
-        Program --> CAct
-        Program --> CPred
-        Program --> CSleep
-
-        CAuth --> SStrava
-        CAct --> SStrava
+        Program --> Controllers
+        CAct --> SAct
         CAct --> SSleep
-        CPred --> SStrava
+        CShoes --> SShoes
+        CShoes --> SAct
+        CPred --> SAct
         CPred --> SBest
-        CPred --> SStore
         CPred --> SMath
-        CSleep --> SStrava
+        CGarmin --> SGarmin
         CSleep --> SSleep
-
-        CAct --> DataModels
-        CPred --> DataModels
-        CSleep --> DataModels
+        SAct --> SGarmin
+        SAct --> SShoes
+        SBest --> SGarmin
+        SGarmin --> SFit
     end
 
-    Strava[(Strava API\nwww.strava.com/api/v3)]
-    Store1[(Data/best-efforts.json)]
-    Store2[(Data/health-sleep.json)]
+    Garmin[(Garmin Connect Personal API\npersonal.connectapi.garmin.com)]
+    Archive[(Data/strava-archive.json\nread-only)]
+    Shoes[(Data/shoes.json)]
+    Store[(Data/best-efforts.json\nhealth-sleep.json\nathlete-settings.json)]
 
-    Api -->|Bearer token| CAct
-    Api -->|Bearer token| CPred
-    Api -->|Bearer token| CSleep
-    App -->|Login redirect| CAuth
-
-    SStrava --> Strava
-    SStore --> Store1
-    SSleep --> Store2
+    Api -->|session cookie + CSRF| Controllers
+    SGarmin -->|server-side key| Garmin
+    SAct --> Archive
+    SShoes --> Shoes
+    SBest --> Store
+    SSleep --> Store

@@ -100,8 +100,8 @@ box(
     640,
     560,
     "1) Frontend (React/Vite)",
-    "Fichiers clefs: strava-front/src/App.tsx et strava-front/src/api.ts. "
-    "Le front lit le token Strava dans le hash URL, appelle les endpoints API et affiche les cartes: KPIs, activities, predictions, shoes.",
+    "Fichiers clefs: web/src/App.tsx et web/src/api.ts. "
+    "Apres le mot de passe FabRun (cookie de session), le front appelle les endpoints API et affiche les cartes: KPIs, activites, predictions, chaussures, ski.",
     BLUE,
 )
 
@@ -111,9 +111,7 @@ box(
     1440,
     560,
     "2) API ASP.NET Core",
-    "Entree: Program.cs (DI, CORS, Swagger, controllers). "
-    "Controllers principaux: AuthController, ActivitiesController, PredictionsController, HealthSleepController. "
-    "Les controllers orchestrent les services et renvoient du JSON au front.",
+    "Entree: Program.cs (DI, CORS, auth). Controllers: Access, Activities, Shoes, Predictions, Garmin, HealthSleep.",
     GREEN,
 )
 
@@ -122,9 +120,9 @@ box(
     180,
     2130,
     560,
-    "3) Strava Cloud API",
-    "Appels externes via StravaService (OAuth, athlete, activities, streams, details). "
-    "Toutes les donnees sportives sources viennent de l API Strava.",
+    "3) Garmin Connect Personal API",
+    "Appels externes via GarminService (cle serveur): liste des activites, fichiers FIT, sommeil, HRV, poids. "
+    "Toutes les donnees sportives viennent de Garmin.",
     ORANGE,
 )
 
@@ -134,8 +132,9 @@ box(
     1440,
     1030,
     "4) Services metier",
-    "StravaService: appels HTTP + MemoryCache. "
-    "BestEffortsService: calcule meilleurs efforts (1k/5k/10k/HM/M) via streams/splits. "
+    "ActivityService: activites Garmin + archive Strava (avant la montre). "
+    "ShoeService: paire par defaut et paire de chaque course. "
+    "BestEffortsService: meilleurs efforts (1k/5k/10k/HM/M) via les fichiers FIT. "
     "PredictionMath: calibrage exponent + score de confiance. "
     "HealthSleepService: sessions sommeil + resume 7j/30j.",
     PURPLE,
@@ -147,8 +146,7 @@ box(
     2130,
     1030,
     "5) Stockage local",
-    "Fichiers JSON en local: Data/best-efforts.json et Data/health-sleep.json. "
-    "Utilise pour persister les snapshots best efforts et les donnees sommeil par athlete.",
+    "JSON locaux: best-efforts, health-sleep, athlete-settings, shoes, strava-archive (lecture seule).",
     GRAY,
 )
 
@@ -164,8 +162,8 @@ box(
 )
 
 # Arrows main flow
-arrow(640, 370, 770, 370, "HTTP JSON + Bearer token")
-arrow(1440, 370, 1570, 370, "Appels https://www.strava.com/api/v3")
+arrow(640, 370, 770, 370, "HTTP JSON + cookie de session")
+arrow(1440, 370, 1570, 370, "personal.connectapi.garmin.com")
 arrow(1110, 560, 1110, 640, "Controllers -> Services")
 arrow(1440, 835, 1570, 835, "Lecture/ecriture JSON")
 arrow(770, 930, 640, 930, "Retour objets metier/DTO")
@@ -176,10 +174,10 @@ d.rounded_rectangle((panel_x1, panel_y1, panel_x2, panel_y2), radius=22, outline
 d.text((panel_x1 + 20, panel_y1 + 16), "Lecture rapide des flux", font=h_font, fill=TXT)
 
 explanations = [
-    "A) Login: App.tsx redirige vers /auth/login -> Strava OAuth -> /oauth/callback -> token dans URL hash.",
-    "B) Chargement dashboard: GET /api/dashboard -> ActivitiesController -> StravaService + HealthSleepService -> JSON agrege (activities, kpis, profile, sleep).",
+    "A) Login: mot de passe FabRun -> POST /access/login -> cookie HttpOnly. Aucune autorisation tierce dans le navigateur.",
+    "B) Chargement dashboard: GET /api/dashboard -> ActivitiesController -> ActivityService (Garmin + archive + chaussures) + HealthSleepService -> JSON agrege.",
     "C) Predictions: GET /api/predictions/running -> PredictionsController -> BestEffortsService + PredictionMath + BestEffortsStoreService.",
-    "D) Performance: MemoryCache limite les appels repetes a Strava; snapshots JSON evite de recalculer trop souvent.",
+    "D) Performance: cache de 15 min sur les appels Garmin; snapshots JSON evitent de recalculer trop souvent.",
     "E) Point cle architecture: controllers minces, logique metier concentree dans Services, UI dans composants React.",
 ]
 
@@ -189,7 +187,7 @@ for item in explanations:
     y += 4
 
 # Footer
-footer = "Fichiers references: Program.cs | Controllers/* | Services/* | Models/* | strava-front/src/App.tsx | strava-front/src/api.ts"
+footer = "Fichiers references: Program.cs | Controllers/* | Services/* | Models/* | web/src/App.tsx | web/src/api.ts"
 d.text((70, 1550), footer, font=s_font, fill=MUTED)
 
 out = "docs/architecture-expliquee.png"
