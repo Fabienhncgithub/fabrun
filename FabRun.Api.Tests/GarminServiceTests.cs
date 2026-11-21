@@ -99,6 +99,16 @@ public class GarminServiceTests
         Assert.Equal(3.5d, activity.Aerobic);
     }
 
+    [Fact]
+    public void SkiParserKeepsOnlySkiActivities()
+    {
+        using var json = JsonDocument.Parse("""[{"activityId":1,"startTimeLocal":"2026-01-10 09:00:00","activityType":{"typeKey":"resort_skiing"},"distance":61000,"duration":21000,"elevationLoss":6500,"maxSpeed":21.4},{"activityId":2,"startTimeLocal":"2026-01-11 09:00:00","activityType":{"typeKey":"running"},"distance":10000,"duration":3000},{"activityId":3,"startTimeLocal":"2026-01-12 09:00:00","activityType":{"typeKey":"backcountry_skiing"},"distance":12000,"duration":14000}]""");
+        var days = GarminService.ParseSki(json.RootElement);
+        Assert.Equal(new long[] { 1, 3 }, days.Select(d => d.Id));
+        Assert.Equal(6500d, days[0].ElevationLoss);
+        Assert.Null(days[1].ElevationLoss);
+    }
+
     private sealed class Factory(HttpMessageHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, false) { BaseAddress = new Uri("https://personal.connectapi.garmin.com/") };

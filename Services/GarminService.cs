@@ -104,6 +104,59 @@ public sealed class GarminService(IHttpClientFactory clients, IConfiguration con
         return result;
     }
 
+    private GarminSkiBatch? skiCache;
+
+    // Full history (no date filter): ski totals are lifetime numbers, unlike the 365-day activity list.
+    public async Task<GarminSkiBatch> SkiAsync(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if (skiCache is not null && skiCache.SyncedAtUtc > DateTimeOffset.UtcNow - CacheDuration)
+                return skiCache;
+            using var client = clients.CreateClient("Garmin");
+            var days = new List<GarminSkiDay>();
+            const int limit = 99, maxPages = 30;
+            var truncated = false;
+            for (var page = 0; page < maxPages; page++)
+            {
+                using var json = await GetAsync(client,
+                    $"activitylist-service/activities/search/activities?start={page * limit}&limit={limit}&sortOrder=desc&excludeChildren=true", ct);
+                if (json.RootElement.ValueKind == JsonValueKind.Null) break;
+                if (json.RootElement.ValueKind != JsonValueKind.Array) throw new JsonException("Unexpected Garmin activities response.");
+                days.AddRange(ParseSki(json.RootElement));
+                if (json.RootElement.GetArrayLength() < limit) break;
+                truncated = page == maxPages - 1;
+            }
+            skiCache = new GarminSkiBatch(DateTimeOffset.UtcNow, days.DistinctBy(d => d.Id).ToList(), truncated);
+            return skiCache;
+        }
+        finally { gate.Release(); }
+    }
+
+    internal static bool IsSki(string sport) => sport.Contains("ski", StringComparison.OrdinalIgnoreCase)
+        || sport.Contains("snowboard", StringComparison.OrdinalIgnoreCase);
+
+    internal static List<GarminSkiDay> ParseSki(JsonElement array)
+    {
+        var result = new List<GarminSkiDay>();
+        if (array.ValueKind != JsonValueKind.Array) return result;
+        foreach (var item in array.EnumerateArray())
+        {
+            var id = Child(item, "activityId");
+            var start = Child(item, "startTimeLocal");
+            var sport = Child(Child(item, "activityType"), "typeKey");
+            if (sport.ValueKind != JsonValueKind.String || !IsSki(sport.GetString()!)) continue;
+            if (id.ValueKind != JsonValueKind.Number || !id.TryGetInt64(out var key) || key <= 0
+                || start.ValueKind != JsonValueKind.String || !DateTime.TryParseExact(start.GetString(), "yyyy-MM-dd HH:mm:ss",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out _)
+                || Number(item, "distance") is not { } distance) continue;
+            result.Add(new GarminSkiDay(key, start.GetString()!, sport.GetString()!, distance,
+                Number(item, "duration") ?? 0, Number(item, "elevationLoss"), Number(item, "maxSpeed")));
+        }
+        return result;
+    }
+
     public async Task<GarminHistory> HistoryAsync(string period, CancellationToken ct)
     {
         var today = Today();

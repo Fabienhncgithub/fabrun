@@ -337,3 +337,10 @@ export type GarminActivityBatch = {
   from: string; until: string; syncedAtUtc: string; activities: GarminActivity[]; truncated: boolean;
 };
 export const fetchGarminActivities = () => apiFetch<GarminActivityBatch>("/api/garmin/activities", { method: "POST" });
+
+export type GarminSkiDay = {
+  id: number; startLocal: string; sport: string; distance: number; duration: number;
+  elevationLoss: number | null; maxSpeed: number | null;
+};
+export type GarminSkiBatch = { syncedAtUtc: string; days: GarminSkiDay[]; truncated: boolean };
+export const fetchGarminSki = () => apiFetch<GarminSkiBatch>("/api/garmin/ski", { method: "POST" });

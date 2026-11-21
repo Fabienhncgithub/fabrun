@@ -30,6 +30,10 @@ public class GarminController(GarminService garmin, ILogger<GarminController> lo
     [EnableRateLimiting("garmin-history")]
     public Task<IActionResult> Activities(CancellationToken ct) => Execute("activities", ct);
 
+    [HttpPost("ski")]
+    [EnableRateLimiting("garmin-history")]
+    public Task<IActionResult> Ski(CancellationToken ct) => Execute("ski", ct);
+
     private async Task<IActionResult> Execute(string? period, CancellationToken ct)
     {
         if (!garmin.Configured)
@@ -37,6 +41,7 @@ public class GarminController(GarminService garmin, ILogger<GarminController> lo
         try
         {
             if (period == "activities") return Ok(await garmin.ActivitiesAsync(ct));
+            if (period == "ski") return Ok(await garmin.SkiAsync(ct));
             if (period is not null) return Ok(await garmin.HistoryAsync(period, ct));
             return Ok(await garmin.SyncAsync(ct));
         }

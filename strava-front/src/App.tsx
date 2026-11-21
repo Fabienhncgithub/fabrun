@@ -30,6 +30,7 @@ import PerformancePredictionsCard from "./components/PerformancePredictionsCard"
 import GoalRaceCard from "./components/GoalRaceCard";
 import WeeklyKmChartCard from "./components/WeeklyKmChartCard";
 import YearHeatmapCard from "./components/YearHeatmapCard";
+import SkiCard from "./components/SkiCard";
 import AcrAlertBanner from "./components/AcrAlertBanner";
 import WeeklyRampAlertBanner from "./components/WeeklyRampAlertBanner";
 import NextSessionCard from "./components/NextSessionCard";
@@ -528,6 +529,7 @@ export default function App() {
                   </CardErrorBoundary></section>
                   <section className="panel"><CardErrorBoundary title="Kilomètres de course"><WeeklyKmChartCard rows={rows} /></CardErrorBoundary></section>
                   <CardErrorBoundary title="Activité de l’année"><YearHeatmapCard rows={heatmapRows ?? rows} /></CardErrorBoundary>
+                  <section className="panel"><CardErrorBoundary title="Ski"><SkiCard active={activePage === "progression"} /></CardErrorBoundary></section>
                 </div>
 
                 <div className="dashboard-view" id="recuperation" hidden={activePage !== "recuperation"} aria-labelledby="dashboard-page-title">

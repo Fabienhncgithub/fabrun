@@ -12,6 +12,7 @@
 **/*.pem
 **/*.p12
 Data/*.json
+Data/**/*.json
 
 .pnpm-store/
 
